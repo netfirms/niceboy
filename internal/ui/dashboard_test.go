@@ -21,6 +21,12 @@ func TestNewModel(t *testing.T) {
 	if m.ActiveTab != TabCockpit {
 		t.Error("expected cockpit tab to be active")
 	}
+	if m.AppVersion != "dev" {
+		t.Errorf("expected version dev, got %s", m.AppVersion)
+	}
+	if m.AppCommit != "test" {
+		t.Errorf("expected commit test, got %s", m.AppCommit)
+	}
 }
 
 func TestModelUpdates(t *testing.T) {
@@ -57,7 +63,7 @@ func TestModelUpdates(t *testing.T) {
 }
 
 func TestViewRendering(t *testing.T) {
-	m := NewModel("binance", "BTCUSDT", false, nil, "sma_crossover", map[string]interface{}{"fast_period": 10.0, "slow_period": 21.0}, 0.001, "dev", "test")
+	m := NewModel("binance", "BTCUSDT", false, nil, "sma_crossover", map[string]interface{}{"fast_period": 10.0, "slow_period": 21.0}, 0.001, "dev", "testcommit123")
 	m.Width = 100
 	m.Height = 40
 	m.Ready = true
@@ -82,5 +88,10 @@ func TestViewRendering(t *testing.T) {
 	
 	if !(usdtIdx < btcIdx && btcIdx < ethIdx) {
 		t.Errorf("Balances not prioritized correctly in View. Indices: USDT=%d, BTC=%d, ETH=%d", usdtIdx, btcIdx, ethIdx)
+	}
+
+	// Check if version string is rendered correctly
+	if !strings.Contains(view, "dev-testcom") {
+		t.Errorf("expected view to contain 'dev-testcom' version string, but it was missing")
 	}
 }
