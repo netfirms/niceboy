@@ -23,15 +23,16 @@ sequenceDiagram
 
 ## ✨ Features
 
-- **🚀 Low Footprint**: Optimized Go core with sub-10MB memory usage.
-- **🖥️ Tabbed TUI Dashboard**: Professionally styled terminal user interface with multiple views for **Stats**, **Portfolio**, **Orders**, and **Audit Logs**.
-- **🧪 Dry Run Simulator**: Safely test strategies with real-time market data.
-- 🛡️ **Managed Risk**: Built-in **Stop Loss** and **Take Profit** guardrails.
-- 🔄 **Self-Healing**: Automatic WebSocket reconnection with exponential backoff.
-- 📊 **Audit Logs**: High-precision JSON logging for every trade and signal.
+- **🛡️ Grandmaster Trading Cockpit**: A professional-grade terminal interface featuring a **Real-Time Visual Chart**, **Tactical Hotkeys**, and a high-stakes **EMERGENCY KILL SWITCH** (`k`).
+- **📊 ASCII Order Book Heatmap**: Visualize market pressure and liquidity walls with a live top-5 market depth widget.
+- **💓 Global Market Pulse**: Side-by-side tracking for **BTC & ETH** to provide essential market context while trading.
+- **🚀 Low Footprint**: Optimized Go core with sub-10MB memory usage and extreme CPU efficiency.
+- **🖥️ Tabbed TUI Dashboard**: Professionally styled multiple views for **Stats**, **Portfolio**, **Orders**, **Strategy**, and **Audit Logs**.
+- **🧪 Dry Run Simulator**: Safely test strategies with real-time market data and simulated execution.
+- 🛡️ **Managed Risk**: Built-in **Stop Loss**, **Take Profit**, and **Trailing Stop** guardrails.
+- 🔄 **Self-Healing**: Automatic WebSocket reconnection with exponential backoff and connection quality diagnostics.
 - 🏗️ **Git Security Hooks**: Pre-commit scanning for leaked secrets and QA enforcement, ensuring 100% test passing.
 - **🔌 Multi-Exchange**: Production-ready adapters for **Binance** and **Bitkub** (V3 API).
-- **📊 Structured Auditing**: Dual-output logging (Console + JSON) for full forensic traceability.
 
 ## 🛠️ Technology Stack
 
