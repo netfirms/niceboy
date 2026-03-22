@@ -152,20 +152,24 @@ func (b *BinanceExchange) ExecuteOrder(ctx context.Context, symbol string, side 
 		oType = binance.OrderTypeLimit
 	}
 
-	// Slippage Protection: Use PROTECTED LIMIT order instead of MARKET
-	// (Prices and quantities are formatted to the specific exchange's precision standards)
+	// Fetch symbol info to ensure correct precision for PRICE_FILTER and LOT_SIZE compliance
+	info, err := b.GetSymbolInfo(ctx, symbol)
+	if err != nil {
+		return fmt.Errorf("failed to get symbol info for %s: %w", symbol, err)
+	}
+
 	srv := b.client.NewCreateOrderService().
 		Symbol(symbol).
 		Side(sideType).
 		Type(oType).
-		Quantity(strconv.FormatFloat(quantity, 'f', -1, 64)) // Pre-truncated in main.go, but we could enforce here too.
+		Quantity(strconv.FormatFloat(quantity, 'f', info.BasePrecision, 64))
 
 	if orderType == Limit {
-		srv = srv.Price(strconv.FormatFloat(price, 'f', -1, 64)).
+		srv = srv.Price(strconv.FormatFloat(price, 'f', info.QuotePrecision, 64)).
 			TimeInForce(binance.TimeInForceTypeGTC)
 	}
 
-	_, err := srv.Do(ctx)
+	_, err = srv.Do(ctx)
 	return err
 }
 
