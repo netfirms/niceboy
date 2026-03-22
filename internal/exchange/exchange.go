@@ -8,6 +8,7 @@ import (
 type MarketData struct {
 	Symbol string
 	Price  float64
+	Time   int64 // Unix timestamp in milliseconds
 }
 
 // Exchange defines the interface for interacting with a cryptocurrency exchange

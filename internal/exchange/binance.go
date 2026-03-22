@@ -13,8 +13,9 @@ type BinanceExchange struct {
 }
 
 func NewBinanceExchange(apiKey, secretKey string) *BinanceExchange {
+	c := binance.NewClient(apiKey, secretKey)
 	return &BinanceExchange{
-		client: binance.NewClient(apiKey, secretKey),
+		client: c,
 	}
 }
 

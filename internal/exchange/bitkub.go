@@ -2,18 +2,21 @@ package exchange
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-
-	"github.com/dvgamerr-app/go-bitkub/bitkub"
-	"github.com/dvgamerr-app/go-bitkub/market"
+	"net/http"
 )
 
 type BitkubExchange struct {
+	BaseURL string
+	client  *http.Client
 }
 
 func NewBitkubExchange(apiKey, secretKey string) *BitkubExchange {
-	bitkub.Initlizer(apiKey, secretKey)
-	return &BitkubExchange{}
+	return &BitkubExchange{
+		BaseURL: "https://api.bitkub.com",
+		client:  &http.Client{},
+	}
 }
 
 func (b *BitkubExchange) GetName() string {
@@ -21,16 +24,39 @@ func (b *BitkubExchange) GetName() string {
 }
 
 func (b *BitkubExchange) GetPrice(ctx context.Context, symbol string) (float64, error) {
-	ticker, err := market.GetTicker(symbol)
+	url := fmt.Sprintf("%s/api/market/ticker?sym=%s", b.BaseURL, symbol)
+	
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return 0, err
 	}
 
-	if len(ticker) == 0 {
+	resp, err := b.client.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("unexpected status: %d", resp.StatusCode)
+	}
+
+	var data struct {
+		Result map[string]struct {
+			Last float64 `json:"last"`
+		} `json:"result"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return 0, err
+	}
+
+	ticker, ok := data.Result[symbol]
+	if !ok {
 		return 0, fmt.Errorf("no ticker data for symbol: %s", symbol)
 	}
 
-	return ticker[0].Last, nil
+	return ticker.Last, nil
 }
 
 func (b *BitkubExchange) SubscribePrice(ctx context.Context, symbol string, ch chan<- MarketData) error {

@@ -2,31 +2,34 @@
 
 `niceboy` is designed with a modular, event-driven architecture to ensure high performance and low latency while maintaining a small resource footprint.
 
-## 🧱 Core Components
+## 🏛️ Design Philosophy: The Five Pillars
 
-### 1. **Core Kernel (`niceboy/cmd`)**
-- Orchestrates the lifecycle of all other modules.
-- Handles configuration loading and CLI command routing.
-- Basic error handling and logging foundation.
+`niceboy` is architected to balance institutional-grade performance with individual ease-of-use.
 
-### 2. **Exchange Integration Layer (`niceboy/internal/exchange`)**
-- Provides a unified interface for multiple exchanges (e.g., Binance, Bybit).
-- Abstracts WebSocket and REST API differences.
-- Manages order books and account balance synchronization.
+### 1. 👫 User Friendly (Accessibility)
+- **Interactive TUI**: Powered by **Bubble Tea**, providing a rich, responsive terminal dashboard that rivals GUI applications without the overhead.
+- **Intuitive Config**: Unified YAML structure with strict validation, making it easy to swap exchanges or strategies in seconds.
+- **Clear Feedback**: Human-readable console logs synchronized with high-precision audit trails.
 
-### 3. **Strategy Engine (`niceboy/internal/strategy`)**
-- **Plug-and-Play Pattern**: Uses a `Registry` to dynamically load strategies by name.
-- **Unified Interface**: All algorithms implement the `Strategy` interface, receiving `MarketData` and emitting `Signal`.
-- **Reference Implementation**: `SMACrossover` serves as a template for custom strategy development.
+### 2. ⚡ Speed (Latency)
+- **Go 1.24+ Runtime**: Leverages the latest runtime improvements for garbage collection and scheduler efficiency.
+- **WebSocket Streaming**: (Implementation in progress) Direct TCP/TLS streams for sub-millisecond market updates.
+- **Efficient Signaling**: Strategy logic executes in the "hot path," ensuring zero unnecessary allocations between data receipt and signal generation.
 
-### 4. **Execution Engine (`niceboy/internal/execution`)**
-- Responsible for placing, modifying, and canceling orders.
-- **Resilience Layer**: Implements per-iteration panic recovery and context-aware timeouts.
-- **Audit Trail**: Every execution event is captured in the structured audit log for post-trade analysis.
+### 3. 🚀 Performance (Resource Efficiency)
+- **Sub-10MB Memory**: Optimized for low-power VPS instances or side-car execution.
+- **Statically Linked**: No external library dependencies; a single binary that "just works" across all OS targets.
+- **Concurrent Scaling**: Modular architecture allows running multiple instances without performance degradation.
 
-### 5. **Console TUI (`niceboy/internal/ui`)**
-- Built with **Bubble Tea** for a stateful, component-based TUI.
-- **Real-time Visualization**: Synchronized with the structured logging engine for congruent feedback.
+### 4. 🛡️ Security (Zero-Trust)
+- **Local-First**: API keys never leave your machine; no cloud middle-man.
+- **Environment Inversion**: Support for `NICEBOY_*` environment variables keeps secrets out of static files.
+- **Audit Traceability**: Structured JSON logging (`niceboy.log`) for full forensic audit of every bot action.
+
+### 5. 💰 Trading Profit (Execution)
+- **Adapter Pattern**: Unified interface for Binance/Bitkub ensures consistent strategy performance across markets.
+- **Resilient Execution**: Panic recovery and context timeouts ensure the bot stays alive and responsive during high-volatility events.
+- **Execution Precision**: Decoupled strategy and execution engines allow for sub-second order management.
 
 ## 📡 Data Flow
 
