@@ -6,13 +6,43 @@ import (
 )
 
 func init() {
-	Register("sma_crossover", func() Strategy {
-		return &SMACrossover{
-			shortPeriod: 5,
-			longPeriod:  10,
-			prices:      []float64{},
+	Register("sma_crossover", func(params map[string]interface{}) (Strategy, error) {
+		shortP := 5
+		longP := 10
+
+		if val, err := getIntParam(params, "short_period"); err == nil {
+			shortP = val
 		}
+		if val, err := getIntParam(params, "long_period"); err == nil {
+			longP = val
+		}
+
+		if shortP >= longP {
+			return nil, fmt.Errorf("short_period must be less than long_period")
+		}
+
+		return &SMACrossover{
+			shortPeriod: shortP,
+			longPeriod:  longP,
+			prices:      []float64{},
+		}, nil
 	})
+}
+
+// Helper to extract int from interface
+func getIntParam(params map[string]interface{}, key string) (int, error) {
+	val, ok := params[key]
+	if !ok {
+		return 0, fmt.Errorf("param not found")
+	}
+	switch v := val.(type) {
+	case int:
+		return v, nil
+	case float64:
+		return int(v), nil
+	default:
+		return 0, fmt.Errorf("invalid type for %s", key)
+	}
 }
 
 // SMACrossover is a sample strategy that buys when short SMA crosses above long SMA

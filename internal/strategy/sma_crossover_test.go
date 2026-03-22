@@ -6,7 +6,13 @@ import (
 )
 
 func TestSMACrossover_OnMarketData(t *testing.T) {
-	strat, _ := New("sma_crossover")
+	strat, err := New("sma_crossover", map[string]interface{}{
+		"short_period": 5,
+		"long_period":  10,
+	})
+	if err != nil {
+		t.Fatalf("failed to init strategy: %v", err)
+	}
 
 	tests := []struct {
 		name     string
@@ -58,7 +64,7 @@ func TestSignalType_String(t *testing.T) {
 
 func TestStrategy_Registry(t *testing.T) {
 	t.Run("Valid Strategy", func(t *testing.T) {
-		strat, err := New("sma_crossover")
+		strat, err := New("sma_crossover", map[string]interface{}{})
 		if err != nil {
 			t.Fatalf("failed to create strategy: %v", err)
 		}
@@ -68,7 +74,7 @@ func TestStrategy_Registry(t *testing.T) {
 	})
 
 	t.Run("Invalid Strategy", func(t *testing.T) {
-		_, err := New("unknown")
+		_, err := New("unknown", nil)
 		if err == nil {
 			t.Error("expected error for unknown strategy, got nil")
 		}

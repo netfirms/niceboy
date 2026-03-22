@@ -16,8 +16,10 @@ type ExchangeConfig struct {
 }
 
 type Config struct {
-	ActiveExchange string                    `yaml:"active_exchange"`
-	Exchanges      map[string]ExchangeConfig `yaml:"exchanges"`
+	ActiveExchange     string                    `yaml:"active_exchange"`
+	Strategy           string                    `yaml:"strategy"`
+	StrategyParameters map[string]interface{}    `yaml:"strategy_parameters"`
+	Exchanges          map[string]ExchangeConfig `yaml:"exchanges"`
 }
 
 func LoadConfig(path string) (*Config, error) {
@@ -25,6 +27,11 @@ func LoadConfig(path string) (*Config, error) {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return &Config{
 			ActiveExchange: "binance",
+			Strategy:       "sma_crossover",
+			StrategyParameters: map[string]interface{}{
+				"short_period": 5,
+				"long_period":  10,
+			},
 			Exchanges: map[string]ExchangeConfig{
 				"binance": {Name: "binance", Symbol: "BTCUSDT"},
 				"bitkub":  {Name: "bitkub", Symbol: "THB_BTC"},
