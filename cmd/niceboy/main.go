@@ -227,14 +227,26 @@ func executeSignal(ctx context.Context, signal strategy.Signal, balances map[str
 	// Safety: Pre-execution balance check
 	if balances != nil {
 		if side == exchange.Buy {
+			quoteAsset := info.QuoteAsset
 			cost := quantity * signal.Price
-			if balances["USDT"] < cost {
-				p.Send(ui.AuditMsg(fmt.Sprintf("SKIP: Insufficient USDT (Need %.2f, Have %.2f)", cost, balances["USDT"])))
+			bal, ok := balances[quoteAsset]
+			if !ok {
+				p.Send(ui.AuditMsg(fmt.Sprintf("SKIP: Balance for %s not found in cache", quoteAsset)))
+				return
+			}
+			if bal < cost {
+				p.Send(ui.AuditMsg(fmt.Sprintf("SKIP: Insufficient %s (Need %.2f, Have %.2f)", quoteAsset, cost, bal)))
 				return
 			}
 		} else {
-			if balances[info.BaseAsset] < quantity {
-				p.Send(ui.AuditMsg(fmt.Sprintf("SKIP: Insufficient %s (Need %.4f, Have %.4f)", info.BaseAsset, quantity, balances[info.BaseAsset])))
+			baseAsset := info.BaseAsset
+			bal, ok := balances[baseAsset]
+			if !ok {
+				p.Send(ui.AuditMsg(fmt.Sprintf("SKIP: Balance for %s not found in cache", baseAsset)))
+				return
+			}
+			if bal < quantity {
+				p.Send(ui.AuditMsg(fmt.Sprintf("SKIP: Insufficient %s (Need %.4f, Have %.4f)", baseAsset, quantity, bal)))
 				return
 			}
 		}
