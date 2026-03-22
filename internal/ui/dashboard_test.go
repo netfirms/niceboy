@@ -18,8 +18,8 @@ func TestNewModel(t *testing.T) {
 	if !m.DryRun {
 		t.Error("expected dry run to be true")
 	}
-	if m.ActiveTab != TabDashboard {
-		t.Error("expected dashboard tab to be active")
+	if m.ActiveTab != TabCockpit {
+		t.Error("expected cockpit tab to be active")
 	}
 }
 
@@ -51,8 +51,8 @@ func TestModelUpdates(t *testing.T) {
 	// Test Tab Switch
 	newModel, _ = m.Update(tea.KeyMsg{Type: tea.KeyTab})
 	m = newModel.(Model)
-	if m.ActiveTab != TabLogs {
-		t.Error("expected logs tab")
+	if m.ActiveTab != TabAccount {
+		t.Errorf("expected account tab (1), got %d", m.ActiveTab)
 	}
 }
 
@@ -63,24 +63,24 @@ func TestViewRendering(t *testing.T) {
 	m.Ready = true
 	m.Viewport = viewport.New(100, 20)
 
-	// Test Sorted Balances
+	// Test Sorted Balances (must be on Account Tab)
+	m.ActiveTab = TabAccount
 	m.Balances = map[string]float64{
 		"USDT": 100.0,
 		"BTC":  0.5,
 		"ETH":  2.0,
 	}
 	view := m.View()
-	
-	// Check if they appear in sorted order: BTC, ETH, USDT
+	// Check if they appear in prioritized order: USDT, BTC, ETH
+	usdtIdx := strings.Index(view, "USDT:")
 	btcIdx := strings.Index(view, "BTC:")
 	ethIdx := strings.Index(view, "ETH:")
-	usdtIdx := strings.Index(view, "USDT:")
 	
-	if btcIdx == -1 || ethIdx == -1 || usdtIdx == -1 {
+	if usdtIdx == -1 || btcIdx == -1 || ethIdx == -1 {
 		t.Error("One or more balances missing from View")
 	}
 	
-	if !(btcIdx < ethIdx && ethIdx < usdtIdx) {
-		t.Errorf("Balances not sorted correctly in View. Indices: BTC=%d, ETH=%d, USDT=%d", btcIdx, ethIdx, usdtIdx)
+	if !(usdtIdx < btcIdx && btcIdx < ethIdx) {
+		t.Errorf("Balances not prioritized correctly in View. Indices: USDT=%d, BTC=%d, ETH=%d", usdtIdx, btcIdx, ethIdx)
 	}
 }

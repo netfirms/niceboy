@@ -122,7 +122,11 @@ func (s *SMACrossover) OnMarketData(data exchange.MarketData) Signal {
 	}
 
 	if len(s.prices) < required {
-		return Signal{Type: Wait, Symbol: data.Symbol, Reason: fmt.Sprintf("Collecting data (%d/%d)...", len(s.prices), required)}
+		return Signal{
+			Type:   Wait,
+			Symbol: data.Symbol,
+			Reason: fmt.Sprintf("Collecting data (%d/%d)...", len(s.prices), required),
+		}
 	}
 
 	shortSMA := s.calculateSMA(s.shortPeriod)
@@ -131,6 +135,28 @@ func (s *SMACrossover) OnMarketData(data exchange.MarketData) Signal {
 	var trendEMA float64
 	if s.trendPeriod > 0 {
 		trendEMA = s.calculateEMA(s.trendPeriod)
+	}
+
+	// Prepare base signal with cockpit metadata
+	sig := Signal{
+		Symbol:       data.Symbol,
+		Price:        data.Price,
+		EntryPrice:   s.entryPrice,
+		StopLoss:     0,
+		TakeProfit:   0,
+		TrailingStop: 0,
+	}
+
+	if s.inPosition {
+		if s.stopLossPct > 0 {
+			sig.StopLoss = s.entryPrice * (1.0 - s.stopLossPct/100.0)
+		}
+		if s.takeProfitPct > 0 {
+			sig.TakeProfit = s.entryPrice * (1.0 + s.takeProfitPct/100.0)
+		}
+		if s.trailingStopPct > 0 {
+			sig.TrailingStop = s.highestPrice * (1.0 - s.trailingStopPct/100.0)
+		}
 	}
 
 	// 1. Check Exit Conditions (SL/TP/Trailing) if in position
@@ -147,7 +173,10 @@ func (s *SMACrossover) OnMarketData(data exchange.MarketData) Signal {
 				profit := data.Price - s.entryPrice
 				s.inPosition = false
 				s.lastSignal = Sell
-				return Signal{Type: Sell, Symbol: data.Symbol, Price: data.Price, Profit: profit, Reason: fmt.Sprintf("TRAILING STOP hit at %.2f (Peak: %.2f)", data.Price, s.highestPrice)}
+				sig.Type = Sell
+				sig.Profit = profit
+				sig.Reason = fmt.Sprintf("TRAILING STOP hit at %.2f (Peak: %.2f)", data.Price, s.highestPrice)
+				return sig
 			}
 		}
 
@@ -158,7 +187,10 @@ func (s *SMACrossover) OnMarketData(data exchange.MarketData) Signal {
 				profit := data.Price - s.entryPrice
 				s.inPosition = false
 				s.lastSignal = Sell
-				return Signal{Type: Sell, Symbol: data.Symbol, Price: data.Price, Profit: profit, Reason: fmt.Sprintf("STOP LOSS hit at %.2f (Entry: %.2f)", data.Price, s.entryPrice)}
+				sig.Type = Sell
+				sig.Profit = profit
+				sig.Reason = fmt.Sprintf("STOP LOSS hit at %.2f (Entry: %.2f)", data.Price, s.entryPrice)
+				return sig
 			}
 		}
 
@@ -169,7 +201,10 @@ func (s *SMACrossover) OnMarketData(data exchange.MarketData) Signal {
 				profit := data.Price - s.entryPrice
 				s.inPosition = false
 				s.lastSignal = Sell
-				return Signal{Type: Sell, Symbol: data.Symbol, Price: data.Price, Profit: profit, Reason: fmt.Sprintf("TAKE PROFIT hit at %.2f (Entry: %.2f)", data.Price, s.entryPrice)}
+				sig.Type = Sell
+				sig.Profit = profit
+				sig.Reason = fmt.Sprintf("TAKE PROFIT hit at %.2f (Entry: %.2f)", data.Price, s.entryPrice)
+				return sig
 			}
 		}
 	}
@@ -179,25 +214,42 @@ func (s *SMACrossover) OnMarketData(data exchange.MarketData) Signal {
 		if !s.inPosition && s.lastSignal != Buy {
 			// Trend Filter Confirmation
 			if s.trendPeriod > 0 && data.Price < trendEMA {
-				return Signal{Type: Wait, Symbol: data.Symbol, Reason: "SMA cross UP suppressed by Bearish Trend (Price < EMA)"}
+				sig.Type = Wait
+				sig.Reason = "SMA cross UP suppressed by Bearish Trend (Price < EMA)"
+				return sig
 			}
 
 			s.inPosition = true
 			s.entryPrice = data.Price
 			s.highestPrice = data.Price // Reset peak
 			s.lastSignal = Buy
-			return Signal{Type: Buy, Symbol: data.Symbol, Price: data.Price, Reason: "Short SMA crossed above Long SMA (Trend Confirmed)"}
+			
+			sig.Type = Buy
+			sig.EntryPrice = s.entryPrice
+			sig.Reason = "Short SMA crossed above Long SMA (Trend Confirmed)"
+			
+			// Recalculate guardrails for the BUY signal
+			if s.stopLossPct > 0 { sig.StopLoss = s.entryPrice * (1.0 - s.stopLossPct/100.0) }
+			if s.takeProfitPct > 0 { sig.TakeProfit = s.entryPrice * (1.0 + s.takeProfitPct/100.0) }
+			if s.trailingStopPct > 0 { sig.TrailingStop = s.highestPrice * (1.0 - s.trailingStopPct/100.0) }
+			
+			return sig
 		}
 	} else if shortSMA < longSMA {
 		if s.inPosition && s.lastSignal != Sell {
 			profit := data.Price - s.entryPrice
 			s.inPosition = false
 			s.lastSignal = Sell
-			return Signal{Type: Sell, Symbol: data.Symbol, Price: data.Price, Profit: profit, Reason: "Short SMA crossed below Long SMA"}
+			sig.Type = Sell
+			sig.Profit = profit
+			sig.Reason = "Short SMA crossed below Long SMA"
+			return sig
 		}
 	}
 
-	return Signal{Type: Wait, Symbol: data.Symbol, Reason: "No change"}
+	sig.Type = Wait
+	sig.Reason = "No change"
+	return sig
 }
 
 func (s *SMACrossover) GetState() map[string]interface{} {

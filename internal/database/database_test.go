@@ -65,3 +65,47 @@ func TestSQLiteStore_ClearTrades(t *testing.T) {
 		t.Errorf("expected 0 recent trades, got %d", len(recent))
 	}
 }
+
+func TestSQLiteStore_ExportTradesToCSV(t *testing.T) {
+	dbPath := "test_export.db"
+	csvPath := "test_export.csv"
+	defer os.Remove(dbPath)
+	defer os.Remove(csvPath)
+
+	store, err := NewSQLiteStore(dbPath)
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	defer store.Close()
+
+	// 1. Add some trades
+	trades := []Trade{
+		{Symbol: "BTCUSDT", Side: "BUY", Price: 50000.0, Quantity: 1.0, Profit: 0.0, Timestamp: time.Now(), Reason: "Entry"},
+		{Symbol: "BTCUSDT", Side: "SELL", Price: 51000.0, Quantity: 1.0, Profit: 1000.0, Timestamp: time.Now().Add(time.Minute), Reason: "TP"},
+	}
+
+	for _, tr := range trades {
+		if err := store.SaveTrade(tr); err != nil {
+			t.Fatalf("failed to save trade: %v", err)
+		}
+	}
+
+	// 2. Export to CSV
+	if err := store.ExportTradesToCSV(csvPath); err != nil {
+		t.Fatalf("export failed: %v", err)
+	}
+
+	// 3. Verify file exists
+	if _, err := os.Stat(csvPath); os.IsNotExist(err) {
+		t.Fatalf("CSV file was not created")
+	}
+
+	// 4. Verify content (basic check)
+	content, err := os.ReadFile(csvPath)
+	if err != nil {
+		t.Fatalf("failed to read CSV: %v", err)
+	}
+	if len(content) == 0 {
+		t.Errorf("CSV file is empty")
+	}
+}

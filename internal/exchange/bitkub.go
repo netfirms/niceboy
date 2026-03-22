@@ -481,3 +481,41 @@ func (b *BitkubExchange) GetSymbolInfo(ctx context.Context, symbol string) (Symb
 
 	return SymbolInfo{}, fmt.Errorf("symbol not found: %s", normSym)
 }
+func (b *BitkubExchange) GetOrderBook(ctx context.Context, symbol string, limit int) (OrderBook, error) {
+	normSym := b.normalizeSymbol(symbol)
+	url := fmt.Sprintf("%s/api/v3/market/depth?sym=%s&lmt=%d", b.BaseURL, normSym, limit)
+	resp, err := b.client.Get(url)
+	if err != nil {
+		return OrderBook{}, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return OrderBook{}, fmt.Errorf("bitkub depth failed: %d", resp.StatusCode)
+	}
+
+	var data struct {
+		Asks [][]interface{} `json:"asks"`
+		Bids [][]interface{} `json:"bids"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return OrderBook{}, err
+	}
+
+	book := OrderBook{Symbol: symbol}
+	for _, bid := range data.Bids {
+		if len(bid) >= 2 {
+			p, _ := bid[0].(float64)
+			q, _ := bid[1].(float64)
+			book.Bids = append(book.Bids, DepthEntry{Price: p, Quantity: q})
+		}
+	}
+	for _, ask := range data.Asks {
+		if len(ask) >= 2 {
+			p, _ := ask[0].(float64)
+			q, _ := ask[1].(float64)
+			book.Asks = append(book.Asks, DepthEntry{Price: p, Quantity: q})
+		}
+	}
+	return book, nil
+}

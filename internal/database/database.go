@@ -2,7 +2,10 @@ package database
 
 import (
 	"database/sql"
+	"encoding/csv"
 	"fmt"
+	"os"
+	"strconv"
 	_ "modernc.org/sqlite"
 	"time"
 )
@@ -36,6 +39,7 @@ type Store interface {
 	GetState(key string) (string, error)
 	GetStats() (TradingStats, error)
 	ClearTrades() error
+	ExportTradesToCSV(filepath string) error
 }
 
 // SQLiteStore is a high-performance local database driver
@@ -176,4 +180,52 @@ func (s *SQLiteStore) GetStats() (TradingStats, error) {
 func (s *SQLiteStore) ClearTrades() error {
 	_, err := s.db.Exec("DELETE FROM trades")
 	return err
+}
+
+// ExportTradesToCSV dumps the entire trade history to a CSV file
+func (s *SQLiteStore) ExportTradesToCSV(filepath string) error {
+	rows, err := s.db.Query("SELECT id, symbol, side, price, quantity, profit, reason, timestamp FROM trades ORDER BY timestamp ASC")
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	file, err := os.Create(filepath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	writer := csv.NewWriter(file)
+	defer writer.Flush()
+
+	// Write Header
+	header := []string{"ID", "Timestamp", "Symbol", "Side", "Price", "Quantity", "Profit", "Reason"}
+	if err := writer.Write(header); err != nil {
+		return err
+	}
+
+	for rows.Next() {
+		var t Trade
+		err := rows.Scan(&t.ID, &t.Symbol, &t.Side, &t.Price, &t.Quantity, &t.Profit, &t.Reason, &t.Timestamp)
+		if err != nil {
+			return err
+		}
+
+		record := []string{
+			strconv.FormatInt(t.ID, 10),
+			t.Timestamp.Format(time.RFC3339),
+			t.Symbol,
+			t.Side,
+			strconv.FormatFloat(t.Price, 'f', 8, 64),
+			strconv.FormatFloat(t.Quantity, 'f', 8, 64),
+			strconv.FormatFloat(t.Profit, 'f', 8, 64),
+			t.Reason,
+		}
+		if err := writer.Write(record); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
