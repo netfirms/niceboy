@@ -3,6 +3,7 @@
 
 # The exchange the bot will use on startup
 active_exchange: binance 
+dry_run: true
 
 exchanges:
   binance:

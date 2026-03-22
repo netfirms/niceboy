@@ -77,15 +77,17 @@ type Model struct {
 	AuditLog []string
 	Viewport viewport.Model
 	Ready    bool
+	DryRun   bool
 }
 
-func NewModel(exchangeName, symbol string) Model {
+func NewModel(exchangeName, symbol string, dryRun bool) Model {
 	return Model{
 		ExchangeName: exchangeName,
 		Symbol:       symbol,
 		Status:       "Initializing...",
 		Balances:     make(map[string]float64),
 		ActiveTab:    TabDashboard,
+		DryRun:       dryRun,
 	}
 }
 
@@ -169,7 +171,11 @@ func (m Model) View() string {
 	}
 
 	// 1. Header Area
-	title := headerStyle.Render(fmt.Sprintf("⚡ niceboy ⚡\n%s : %s", strings.ToUpper(m.ExchangeName), m.Symbol))
+	titleText := fmt.Sprintf("⚡ niceboy ⚡\n%s : %s", strings.ToUpper(m.ExchangeName), m.Symbol)
+	if m.DryRun {
+		titleText += " [DRY RUN]"
+	}
+	title := headerStyle.Render(titleText)
 
 	// 2. Tabs
 	activeTabStyle := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("#00ffd5")).Padding(0, 2).Bold(true).Foreground(lipgloss.Color("#ffffff"))

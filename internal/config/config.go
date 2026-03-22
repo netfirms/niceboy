@@ -18,6 +18,7 @@ type ExchangeConfig struct {
 type Config struct {
 	ActiveExchange     string                    `yaml:"active_exchange"`
 	Strategy           string                    `yaml:"strategy"`
+	DryRun             bool                      `yaml:"dry_run"`
 	StrategyParameters map[string]interface{}    `yaml:"strategy_parameters"`
 	Exchanges          map[string]ExchangeConfig `yaml:"exchanges"`
 }
@@ -28,6 +29,7 @@ func LoadConfig(path string) (*Config, error) {
 		return &Config{
 			ActiveExchange: "binance",
 			Strategy:       "sma_crossover",
+			DryRun:         false,
 			StrategyParameters: map[string]interface{}{
 				"short_period": 5,
 				"long_period":  10,
