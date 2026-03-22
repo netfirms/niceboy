@@ -64,7 +64,3 @@ brews:
     test: |
       system "#{bin}/niceboy --version"
 
-# Signing configuration
-signs:
-  - artifacts: checksum
-    args: ["--batch", "-u", "{{ .Env.GPG_FINGERPRINT }}", "--detach-sign", "${artifact}"]
