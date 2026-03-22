@@ -116,9 +116,9 @@ func (b *BitkubExchange) ExecuteOrder(ctx context.Context, symbol string, side O
 		return fmt.Errorf("invalid quantity: %f", quantity)
 	}
 
-	endpoint := "/api/market/place-bid"
+	endpoint := "/api/v3/market/place-bid"
 	if side == Sell {
-		endpoint = "/api/market/place-ask"
+		endpoint = "/api/v3/market/place-ask"
 	}
 
 	url := b.BaseURL + endpoint
