@@ -1,0 +1,21 @@
+# niceboy Configuration Template
+# Copy this file to config.yaml and fill in your details.
+
+# The exchange the bot will use on startup
+active_exchange: binance 
+
+exchanges:
+  binance:
+    name: binance
+    key: "YOUR_BINANCE_API_KEY_HERE"
+    secret: "YOUR_BINANCE_SECRET_KEY_HERE"
+    symbol: "BTCUSDT"
+
+  bitkub:
+    name: bitkub
+    key: "YOUR_BITKUB_API_KEY_HERE"
+    secret: "YOUR_BITKUB_SECRET_KEY_HERE"
+    symbol: "THB_BTC"
+
+# Note: This file contains placeholder credentials. 
+# NEVER commit your actual config.yaml with real secrets!

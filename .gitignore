@@ -1,0 +1,29 @@
+# Binaries
+niceboy
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Configuration (contains secrets)
+config.yaml
+.env
+
+# IDE Metadata
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Dependency directories
+vendor/
+
+# Logs
+*.log
+niceboy.log
+security_test.log
+
+# OS-specific
+.DS_Store
+Thumbs.db
