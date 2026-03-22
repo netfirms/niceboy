@@ -25,6 +25,11 @@ vendor/
 *.log
 niceboy.log
 security_test.log
+audit_log_*.txt
+trades_export_*.csv
+
+# Database
+niceboy.db
 
 # OS-specific
 .DS_Store
