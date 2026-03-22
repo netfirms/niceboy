@@ -165,12 +165,12 @@ func TestBinanceExchange_SubscribePrice(t *testing.T) {
 }
 
 func TestConstructorsAndGetName(t *testing.T) {
-	bin := NewBinanceExchange("ak", "sk")
+	bin := NewBinanceExchange("YOUR_AK", "YOUR_SK")
 	if bin.GetName() != "binance" {
 		t.Error("Expected binance")
 	}
 
-	bit := NewBitkubExchange("ak", "sk")
+	bit := NewBitkubExchange("YOUR_AK", "YOUR_SK")
 	if bit.GetName() != "bitkub" {
 		t.Error("Expected bitkub")
 	}
@@ -186,7 +186,7 @@ func TestBitkubExchange_ExecuteOrder(t *testing.T) {
 	b := &BitkubExchange{
 		BaseURL: server.URL,
 		client:  &http.Client{},
-		secret:  "dummy_secret",
+		secret:  "YOUR_DUMMY_SECRET",
 	}
 
 	err := b.ExecuteOrder(context.Background(), "THB_BTC", Buy, Market, 0.01, 0)
