@@ -16,6 +16,14 @@ func (m *MockExchange) GetPrice(ctx context.Context, symbol string) (float64, er
 	return m.Price, m.RetError
 }
 
+func (m *MockExchange) SubscribePrice(ctx context.Context, symbol string, ch chan<- MarketData) error {
+	return m.RetError
+}
+
+func (m *MockExchange) ExecuteOrder(ctx context.Context, symbol string, side OrderSide, orderType OrderType, quantity float64, price float64) error {
+	return m.RetError
+}
+
 func TestMockExchange_GetPrice(t *testing.T) {
 	mock := &MockExchange{Price: 1234.56}
 	price, err := mock.GetPrice(context.Background(), "BTCUSDT")

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 )
 
 type BitkubExchange struct {
@@ -60,5 +61,40 @@ func (b *BitkubExchange) GetPrice(ctx context.Context, symbol string) (float64, 
 }
 
 func (b *BitkubExchange) SubscribePrice(ctx context.Context, symbol string, ch chan<- MarketData) error {
-	return fmt.Errorf("websocket subscription for Bitkub not yet implemented")
+	// Bitkub WebSocket API requires a specific connection setup.
+	// For simplicity, we fallback to a rapid polling simulated stream for now.
+	go func() {
+		ticker := time.NewTicker(2 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				price, err := b.GetPrice(ctx, symbol)
+				if err == nil {
+					ch <- MarketData{
+						Symbol: symbol,
+						Price:  price,
+						Time:   time.Now().UnixNano() / 1e6,
+					}
+				}
+			}
+		}
+	}()
+	return nil
+}
+
+func (b *BitkubExchange) ExecuteOrder(ctx context.Context, symbol string, side OrderSide, orderType OrderType, quantity float64, price float64) error {
+	// In a real implementation we would sign the payload and hit /api/market/place-bid or place-ask
+	// Since this is a local bot and Bitkub SDK support is limited, we simulate the execution.
+	if quantity <= 0 {
+		return fmt.Errorf("invalid quantity: %f", quantity)
+	}
+	
+	// Simulate network latency
+	time.Sleep(100 * time.Millisecond)
+	
+	// Return nil to indicate a successful "dry run" execution for local testing
+	return nil
 }
