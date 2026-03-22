@@ -161,7 +161,8 @@ func (b *BinanceExchange) ExecuteOrder(ctx context.Context, symbol string, side 
 		Quantity(strconv.FormatFloat(quantity, 'f', -1, 64)) // Pre-truncated in main.go, but we could enforce here too.
 
 	if orderType == Limit {
-		srv = srv.Price(strconv.FormatFloat(price, 'f', -1, 64))
+		srv = srv.Price(strconv.FormatFloat(price, 'f', -1, 64)).
+			TimeInForce(binance.TimeInForceTypeGTC)
 	}
 
 	_, err := srv.Do(ctx)
