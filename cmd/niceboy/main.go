@@ -136,8 +136,9 @@ func main() {
 		m := ui.NewModel(cfg.ActiveExchange, symbol, cfg.DryRun, dbStore, strategyName, cfg.StrategyParameters, cfg.OrderQuantity, version, commit, configName, engineCh)
 		p := tea.NewProgram(m, tea.WithAltScreen())
 
-		var wg sync.WaitGroup
-
+		var wg sync.WaitGroup		
+		pollTriggerCh := make(chan struct{}, 1)
+		
 		// Loop 5: Trading Loop
 		wg.Add(1)
 		go func(cmdCtx context.Context) {
@@ -170,77 +171,87 @@ func main() {
 					switch msg := rawMsg.(type) {
 					case map[string]float64:
 						lastBalances = msg
+					case ui.ManualTradeMsg:
+						// Tactical forced trade
+						p.Send(ui.AuditMsg(fmt.Sprintf("[TACTICAL] Executing forced %s...", msg.Side)))
+						qty := cfg.OrderQuantity
+						price, _ := exch.GetPrice(cmdCtx, symbol)
+						if err := exch.ExecuteOrder(cmdCtx, symbol, msg.Side, exchange.Market, qty, price); err == nil {
+							p.Send(ui.AuditMsg(fmt.Sprintf("SUCCESS: Tactical %s @ %.2f", msg.Side, price)))
+							p.Send(ui.TradeExecutedMsg{})
+							select { case pollTriggerCh <- struct{}{}: default: }
+						} else {
+							p.Send(ui.AuditMsg(fmt.Sprintf("FAIL: Tactical %s failed: %v", msg.Side, err)))
+						}
 					case ui.KillSwitchMsg:
 						halted = true
 						dbStore.SaveState("bot_halted", "true")
-						p.Send(ui.AuditMsg("[EMERGENCY] Global halt activated."))
-					case ui.ManualTradeMsg:
-						p.Send(ui.AuditMsg(fmt.Sprintf("[TACTICAL] Executing manual %s order...", msg.Side)))
-						// Manual trades trigger immediate logic bypass
-						// Fake a signal to reuse execution logic
-						mSignal := strategy.Signal{Type: strategy.Wait, Symbol: symbol, Reason: "User Manual"}
-						if msg.Side == exchange.Buy { mSignal.Type = strategy.Buy } else { mSignal.Type = strategy.Sell }
-						executeSignal(cmdCtx, mSignal, lastBalances, exch, cfg, symbolInfo, dbStore, p, strat)
+						p.Send(ui.AuditMsg("🛑 EMERGENCY HALT ACTIVATED. Position clearing logic skipped for safety."))
 					}
-				case md, ok := <-marketDataCh:
-					if !ok { return }
-					p.Send(ui.PriceMsg(md))
-					if halted { continue }
-					signal := strat.OnMarketData(md)
-					if signal.Type != strategy.Wait {
-						p.Send(ui.SignalMsg(signal))
-						executeSignal(cmdCtx, signal, lastBalances, exch, cfg, symbolInfo, dbStore, p, strat)
+				case data := <-marketDataCh:
+					if halted {
+						continue
+					}
+					sig := strat.OnMarketData(data)
+					if sig.Type != strategy.Wait {
+						p.Send(ui.SignalMsg(sig))
+						
+						if sig.Type == strategy.Buy || sig.Type == strategy.Sell {
+							// Check balance before executing
+							// ... (balance check logic)
+							canTrade := true
+							if sig.Type == strategy.Buy {
+								// Check quote asset
+								quote := lastBalances["USDT"] // Simplified
+								if quote < sig.Price * cfg.OrderQuantity {
+									p.Send(ui.AuditMsg(fmt.Sprintf("SKIP: Insufficient USDT (%.2f < %.2f)", quote, sig.Price*cfg.OrderQuantity)))
+									canTrade = false
+								}
+							} else {
+								// Check base asset
+								base := lastBalances["BTC"] // Simplified
+								if base < cfg.OrderQuantity {
+									p.Send(ui.AuditMsg(fmt.Sprintf("SKIP: Insufficient BTC (%.4f < %.4f)", base, cfg.OrderQuantity)))
+									canTrade = false
+								}
+							}
+
+							if canTrade {
+								executedSignal := strategy.Signal{
+									Type:       sig.Type,
+									Symbol:     symbol,
+									Price:      sig.Price,
+									Profit:     sig.Profit,
+									Reason:     sig.Reason,
+									StopLoss:   sig.StopLoss,
+									TakeProfit: sig.TakeProfit,
+								}
+								executeSignal(cmdCtx, executedSignal, lastBalances, exch, cfg, symbolInfo, dbStore, p, strat)
+								select { case pollTriggerCh <- struct{}{}: default: }
+							}
+						}
 					}
 				}
 			}
 		}(ctx)
 
-		// Loop 6: Polling Loop
+		// Loop 6: Polling Loop (Balances, Orders, Stats)
 		wg.Add(1)
 		go func(cmdCtx context.Context) {
 			defer wg.Done()
 			ticker := time.NewTicker(2 * time.Second)
 			defer ticker.Stop()
+
 			for {
 				select {
 				case <-cmdCtx.Done():
 					return
 				case <-ticker.C:
-					fetchCtx, fetchCancel := context.WithTimeout(cmdCtx, 8*time.Second)
-					balances, err := exch.GetBalances(fetchCtx)
-					if err == nil {
-						p.Send(ui.BalanceUpdateMsg(balances))
-						engineCh <- balances
-					} else {
-						p.Send(ui.AuditMsg(fmt.Sprintf("[ERROR] Failed to fetch balances: %v", err)))
-					}
-					
-					orders, err := exch.GetOpenOrders(fetchCtx, symbol)
-					if err == nil {
-						p.Send(ui.OpenOrdersUpdateMsg(orders))
-					} else {
-						p.Send(ui.AuditMsg(fmt.Sprintf("[ERROR] Failed to fetch open orders: %v", err)))
-					}
-
-					book, err := exch.GetOrderBook(fetchCtx, symbol, 5)
-					if err == nil {
-						p.Send(ui.OrderBookUpdateMsg(book))
-					} else {
-						p.Send(ui.AuditMsg(fmt.Sprintf("[ERROR] Failed to fetch order book: %v", err)))
-					}
-
-					pulse := make(map[string]float64)
-					btcP, err := exch.GetPrice(fetchCtx, "BTCUSDT")
-					if err == nil {
-						pulse["BTC"] = btcP
-						p.Send(ui.MarketPulseMsg(pulse))
-					}
-					
-					stats, err := dbStore.GetStats()
-					if err == nil {
-						p.Send(ui.StatsUpdateMsg(stats))
-					}
-					fetchCancel()
+					// Run Poll
+					triggerPoll(cmdCtx, exch, p, engineCh, dbStore, symbol)
+				case <-pollTriggerCh:
+					// Immediate Refresh
+					triggerPoll(cmdCtx, exch, p, engineCh, dbStore, symbol)
 				}
 			}
 		}(ctx)
@@ -331,4 +342,43 @@ func truncateFloat(f float64, precision int) string {
 	shift := math.Pow(10, float64(precision))
 	truncated := math.Trunc(f*shift) / shift
 	return strconv.FormatFloat(truncated, 'f', precision, 64)
+}
+
+func triggerPoll(cmdCtx context.Context, exch exchange.Exchange, p *tea.Program, engineCh chan<- interface{}, dbStore database.Store, symbol string) {
+	fetchCtx, fetchCancel := context.WithTimeout(cmdCtx, 8*time.Second)
+	defer fetchCancel()
+
+	balances, err := exch.GetBalances(fetchCtx)
+	if err == nil {
+		p.Send(ui.BalanceUpdateMsg(balances))
+		engineCh <- balances
+	} else {
+		p.Send(ui.AuditMsg(fmt.Sprintf("[ERROR] Failed to fetch balances: %v", err)))
+	}
+
+	orders, err := exch.GetOpenOrders(fetchCtx, symbol)
+	if err == nil {
+		p.Send(ui.OpenOrdersUpdateMsg(orders))
+	} else {
+		p.Send(ui.AuditMsg(fmt.Sprintf("[ERROR] Failed to fetch open orders: %v", err)))
+	}
+
+	book, err := exch.GetOrderBook(fetchCtx, symbol, 5)
+	if err == nil {
+		p.Send(ui.OrderBookUpdateMsg(book))
+	} else {
+		p.Send(ui.AuditMsg(fmt.Sprintf("[ERROR] Failed to fetch order book: %v", err)))
+	}
+
+	pulse := make(map[string]float64)
+	btcP, err := exch.GetPrice(fetchCtx, "BTCUSDT")
+	if err == nil {
+		pulse["BTC"] = btcP
+		p.Send(ui.MarketPulseMsg(pulse))
+	}
+
+	stats, err := dbStore.GetStats()
+	if err == nil {
+		p.Send(ui.StatsUpdateMsg(stats))
+	}
 }

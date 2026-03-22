@@ -99,6 +99,9 @@ type SMACrossover struct {
 	trendPeriod     int
 	minGapPct       float64
 	confirmTicks    int
+	rsiPeriod       int
+	rsiThreshold    float64
+	maxDevPct       float64
 
 	prices              []float64
 	maxBuffer           int
@@ -213,7 +216,13 @@ func (s *SMACrossover) OnMarketData(data exchange.MarketData) Signal {
 		}
 	}
 
-	// 2. Check Signals
+	// 2. Indicators for confirmation
+	rsi := s.calculateRSI(s.rsiPeriod)
+	devPct := 0.0
+	if longSMA > 0 {
+		devPct = ((data.Price - longSMA) / longSMA) * 100.0
+	}
+
 	gap := 0.0
 	if longSMA > 0 {
 		gap = (math.Abs(shortSMA-longSMA) / longSMA) * 100.0
@@ -238,6 +247,19 @@ func (s *SMACrossover) OnMarketData(data exchange.MarketData) Signal {
 				return sig
 			}
 
+			// 3. Counter-Trend Filters (RSI & Deviation)
+			if s.rsiPeriod > 0 && rsi > s.rsiThreshold {
+				sig.Type = Wait
+				sig.Reason = fmt.Sprintf("SMA Cross UP ignored: Overbought (RSI: %.1f > %.1f)", rsi, s.rsiThreshold)
+				return sig
+			}
+
+			if s.maxDevPct > 0 && devPct > s.maxDevPct {
+				sig.Type = Wait
+				sig.Reason = fmt.Sprintf("SMA Cross UP ignored: Price too far from mean (Dev: %.2f%% > %.2f%%)", devPct, s.maxDevPct)
+				return sig
+			}
+
 			// Trend Filter Confirmation
 			if s.trendPeriod > 0 && data.Price < trendEMA {
 				sig.Type = Wait
@@ -253,7 +275,7 @@ func (s *SMACrossover) OnMarketData(data exchange.MarketData) Signal {
 
 			sig.Type = Buy
 			sig.EntryPrice = s.entryPrice
-			sig.Reason = fmt.Sprintf("Short SMA crossed above Long SMA (Gap: %.2f%%)", gap)
+			sig.Reason = fmt.Sprintf("Short SMA crossed above Long SMA (Gap: %.2f%%, RSI: %.1f)", gap, rsi)
 
 			// Recalculate guardrails for the BUY signal
 			if s.stopLossPct > 0 {
@@ -355,4 +377,31 @@ func (s *SMACrossover) calculateEMA(period int) float64 {
 		ema = (p * alpha) + (ema * (1.0 - alpha))
 	}
 	return ema
+}
+
+func (s *SMACrossover) calculateRSI(period int) float64 {
+	if len(s.prices) <= period {
+		return 50.0 // Default to neutral if not enough data
+	}
+
+	totalGain := 0.0
+	totalLoss := 0.0
+
+	// Use the last 'period' observations
+	subset := s.prices[len(s.prices)-(period+1):]
+	for i := 1; i < len(subset); i++ {
+		diff := subset[i] - subset[i-1]
+		if diff > 0 {
+			totalGain += diff
+		} else {
+			totalLoss += -diff
+		}
+	}
+
+	if totalLoss == 0 {
+		return 100.0
+	}
+
+	rs := totalGain / totalLoss
+	return 100.0 - (100.0 / (1.0 + rs))
 }
