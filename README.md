@@ -40,7 +40,7 @@ sequenceDiagram
 - **Interface**: [Bubble Tea](https://github.com/charmbracelet/bubbletea) & [Lipgloss](https://github.com/charmbracelet/lipgloss) (Tactical Tabbed TUI).
 - **Persistence**: [SQLite 3](https://sqlite.org/) (High-concurrency WAL-mode for trade history).
 - **Logging**: [zerolog](https://github.com/rs/zerolog) (Structured JSON + Human-readable audit trails).
-- **Distribution**: [GoReleaser](https://goreleaser.com/) (Automated Multi-Arch & Docker builds).
+- **Distribution**: [GoReleaser](https://goreleaser.com/) (Automated Multi-Arch binaries).
 
 ## 🧭 Choose Your Journey
 

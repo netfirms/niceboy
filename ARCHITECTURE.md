@@ -73,4 +73,4 @@ graph TD
 - **Interface**: Bubble Tea & Lipgloss.
 - **Storage**: SQLite 3 (WAL mode).
 - **Logging**: Zerolog (JSON + Human-friendly).
-- **Distribution**: GoReleaser (Multi-arch), Docker (Alpine-based).
+- **Distribution**: GoReleaser (Multi-arch).

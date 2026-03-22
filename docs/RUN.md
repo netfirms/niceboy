@@ -58,12 +58,6 @@ niceboy -config binance_btc.yaml -log btc.log
 niceboy -config bitkub_eth.yaml -log eth.log
 ```
 
-### Docker Execution
-```bash
-docker run -it --rm \
-  -v $(pwd)/config.yaml:/app/config.yaml \
-  netfirms/niceboy:latest
-```
 
 ## 🎮 TUI Controls
 

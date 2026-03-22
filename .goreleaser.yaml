@@ -64,19 +64,6 @@ brews:
     test: |
       system "#{bin}/niceboy --version"
 
-# Docker build configuration
-dockers:
-  - image_templates:
-      - "netfirms/niceboy:latest"
-      - "netfirms/niceboy:{{ .Version }}"
-      - "netfirms/niceboy:{{ .Major }}"
-    dockerfile: Dockerfile
-    build_flag_templates:
-      - "--label=org.opencontainers.image.title={{ .ProjectName }}"
-      - "--label=org.opencontainers.image.version={{ .Version }}"
-    extra_files:
-      - config.example.yaml
-
 # Signing configuration
 signs:
   - artifacts: checksum
