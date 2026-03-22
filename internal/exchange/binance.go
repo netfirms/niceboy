@@ -3,6 +3,7 @@ package exchange
 import (
 	"context"
 	"fmt"
+	"math"
 	"strconv"
 	"time"
 
@@ -158,19 +159,29 @@ func (b *BinanceExchange) ExecuteOrder(ctx context.Context, symbol string, side 
 		return fmt.Errorf("failed to get symbol info for %s: %w", symbol, err)
 	}
 
+	// Apply StepSize and TickSize rounding to ensure filter compliance
+	roundedQty := roundToStep(quantity, info.StepSize)
 	srv := b.client.NewCreateOrderService().
 		Symbol(symbol).
 		Side(sideType).
 		Type(oType).
-		Quantity(strconv.FormatFloat(quantity, 'f', info.BasePrecision, 64))
+		Quantity(strconv.FormatFloat(roundedQty, 'f', info.BasePrecision, 64))
 
 	if orderType == Limit {
-		srv = srv.Price(strconv.FormatFloat(price, 'f', info.QuotePrecision, 64)).
+		roundedPrice := roundToStep(price, info.TickSize)
+		srv = srv.Price(strconv.FormatFloat(roundedPrice, 'f', info.QuotePrecision, 64)).
 			TimeInForce(binance.TimeInForceTypeGTC)
 	}
 
 	_, err = srv.Do(ctx)
 	return err
+}
+
+func roundToStep(val, step float64) float64 {
+	if step == 0 {
+		return val
+	}
+	return math.Floor(val/step+0.0000000001) * step
 }
 
 func (b *BinanceExchange) GetSymbolInfo(ctx context.Context, symbol string) (SymbolInfo, error) {

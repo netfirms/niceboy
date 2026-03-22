@@ -96,6 +96,10 @@ func TestBinanceExchange_Error(t *testing.T) {
 func TestBinanceExchange_ExecuteOrder(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
+		if strings.Contains(r.URL.Path, "/api/v3/exchangeInfo") {
+			w.Write([]byte(`{"symbols": [{"symbol": "BTCUSDT", "baseAsset": "BTC", "quoteAsset": "USDT", "baseAssetPrecision": 8, "quotePrecision": 2, "filters": [{"filterType": "PRICE_FILTER", "tickSize": "0.01"}, {"filterType": "LOT_SIZE", "minQty": "0.00001", "stepSize": "0.00001"}]}]}`))
+			return
+		}
 		w.Write([]byte(`{"symbol": "BTCUSDT", "orderId": 12345}`))
 	}))
 	defer server.Close()
@@ -217,6 +221,10 @@ func TestBitkubExchange_ExecuteOrder(t *testing.T) {
 func TestBinanceExchange_ExecuteOrderLimit(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
+		if strings.Contains(r.URL.Path, "/api/v3/exchangeInfo") {
+			w.Write([]byte(`{"symbols": [{"symbol": "BTCUSDT", "baseAsset": "BTC", "quoteAsset": "USDT", "baseAssetPrecision": 8, "quotePrecision": 8, "filters": [{"filterType": "PRICE_FILTER", "tickSize": "0.00000001"}, {"filterType": "LOT_SIZE", "minQty": "0.00001", "stepSize": "0.00001"}]}]}`))
+			return
+		}
 		w.Write([]byte(`{"symbol": "BTCUSDT", "orderId": 12345}`))
 	}))
 	defer server.Close()
