@@ -23,12 +23,12 @@
 - **WAL-Mode Persistence**: SQLite with Write-Ahead Logging for zero-wait database operations.
 
 ### 4. 🛡️ Security (Zero-Trust)
-- **Secret Scanning**: Mandatory pre-commit hooks ensure zero API keys are ever committed.
-- **Environment Overrides**: Peak precedence for `NICEBOY_*` env vars.
+- **Secret Scanning**: Mandatory pre-commit hooks ensure zero API keys are ever committed6.  **Interactive TUI (Bubble Tea)**: The TUI acts as the Command & Control center, providing both observation (Cockpit) and tactical intervention. Key commands (`b`/`s`/`k`) are dispatched via a thread-safe channel to the Trade Engine.
 
-### 5. 💰 Institutional Execution (Profitability)
-- **Slippage Protection**: Automated Limit Order buffering based on configurable `slippage_pct`.
-- **Automated Precision**: Dynamic `SymbolInfo` ingestion for precise volume/price truncation.
+### 🛡️ Safety & Guardrails
+- **Pre-execution Balance Check**: The engine validates sufficient funds before any order execution (Buy or Sell).
+- **Persistent Global Halt**: Emergency Kill Switch state is stored in SQLite to survive restarts.
+- **Slippage Protection**: Automated SMA signals are executed as "Protected Limit Orders" with a configurable slippage buffer.
 - **Elite Logic**: Integrated **Trailing Stops**, **EMA Trend Filters**, and **SL/TP** guardrails.
 
 ## 📡 Data Flow

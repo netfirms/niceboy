@@ -105,13 +105,24 @@ type Model struct {
 	MarketPulse map[string]float64 // BTC, ETH prices
 	AppVersion  string
 	AppCommit   string
+
+	// Engine Bridge
+	engineCh chan<- interface{}
 }
 
 type OrderBookUpdateMsg exchange.OrderBook
 type LatencyUpdateMsg time.Duration
 type MarketPulseMsg map[string]float64
 
-func NewModel(exchangeName, symbol string, dryRun bool, db database.Store, strategyName string, strategyParams map[string]interface{}, orderQuantity float64, appVersion, appCommit string) Model {
+// ManualTradeMsg carries a user-triggered tactical order
+type ManualTradeMsg struct {
+	Side exchange.OrderSide
+}
+
+// KillSwitchMsg triggers an emergency global halt
+type KillSwitchMsg struct{}
+
+func NewModel(exchangeName, symbol string, dryRun bool, db database.Store, strategyName string, strategyParams map[string]interface{}, orderQuantity float64, appVersion, appCommit string, engineCh chan<- interface{}) Model {
 	return Model{
 		ExchangeName:   exchangeName,
 		Symbol:         symbol,
@@ -263,15 +274,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.StatusMsg = "⚡ FORCING BUY..."
 			m.StatusExpiry = time.Now().Add(2 * time.Second)
 			m.addAudit("[TACTICAL] User triggered manual BUY")
-			// In a real implementation, we'd trigger a buy command here
+			if m.engineCh != nil {
+				m.engineCh <- ManualTradeMsg{Side: exchange.Buy}
+			}
 		case "s":
 			m.StatusMsg = "⚡ FORCING SELL..."
 			m.StatusExpiry = time.Now().Add(2 * time.Second)
 			m.addAudit("[TACTICAL] User triggered manual SELL")
+			if m.engineCh != nil {
+				m.engineCh <- ManualTradeMsg{Side: exchange.Sell}
+			}
 		case "k":
 			m.StatusMsg = "🛑 KILL SWITCH ACTIVATED"
 			m.addAudit("[EMERGENCY] KILL SWITCH TRIGGERED BY USER")
-			return m, tea.Quit // For now, just exit. Engines may need deeper logic.
+			if m.engineCh != nil {
+				m.engineCh <- KillSwitchMsg{}
+			}
+			return m, tea.Quit
 		}
 	}
 
