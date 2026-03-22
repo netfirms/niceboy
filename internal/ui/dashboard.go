@@ -212,10 +212,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case TradeExecutedMsg:
 		m.TradeCount++
-		// Refresh history if we are on that tab
-		if m.ActiveTab == TabHistory {
-			return m, m.fetchTradesCmd()
-		}
+		// Always refresh history to ensure Cockpit mini-history is up to date
+		return m, m.fetchTradesCmd()
 
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -590,9 +588,9 @@ func (m Model) renderCockpit(headerSection string) string {
 
 	centerArea := lipgloss.JoinVertical(lipgloss.Center, priceArea, signalArea)
 
-	// 5. Mini History (Last 3)
+	// 5. Mini History (Last 10)
 	histLines := []string{"LAST EXECUTIONS:"}
-	limit := 3
+	limit := 10
 	if len(m.Trades) < limit { limit = len(m.Trades) }
 	for i := 0; i < limit; i++ {
 		t := m.Trades[i]
