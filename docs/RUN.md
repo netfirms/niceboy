@@ -1,6 +1,7 @@
-# 🚀 How to Run niceboy
+# 🚀 Installation & Run Guide
 
-This guide will walk you through setting up and running your `niceboy` trading bot.
+> [!TIP]
+> **Developer?** If you intend to contribute code or run the test suite, please follow the [Developer Journey (Onboarding)](./ONBOARDING.md) instead.
 
 ## 📋 Prerequisites
 

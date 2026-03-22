@@ -36,23 +36,40 @@ sequenceDiagram
 - **Exchange Integration**: Official SDKs for Binance and Bitkub via a unified runtime adapter.
 - **UI Framework**: [Bubble Tea](https://github.com/charmbracelet/bubbletea) (Terminal User Interface).
 
-## 🚀 Quick Start
+## 🧭 Choose Your Journey
 
-Get your bot running in 3 simple steps:
+Whether you are looking to run the bot or build upon it, follow the path that fits your role:
 
-1. **Clone and Setup**:
+### 👤 The User Journey (Run the Bot)
+*Goal: Deploy `niceboy` and start trading in under 5 minutes.*
+
+1. **Quick Start**: [Install & Run](./docs/RUN.md)
+2. **Configuration**: [Setting up Keys & Symbols](./docs/RUN.md#configuration)
+3. **Management**: [Running Multiple Instances](./docs/RUN.md#multi-instance-support)
+
+### 💻 The Developer Journey (Build the Bot)
+*Goal: Setup the local dev environment and contribute core logic.*
+
+1. **Onboarding**: [Setup & Hello World](./docs/ONBOARDING.md)
+2. **Architecture**: [Understand the 5 Pillars](./ARCHITECTURE.md)
+3. **Execution**: [Testing & Coverage Suite](./docs/TESTING.md)
+
+---
+
+## ⚡ Quick Start (User Path)
+
+1. **Install Go**: Ensure Go 1.24+ is installed.
+2. **Cloning**:
    ```bash
    git clone https://github.com/netfirms/niceboy.git
    cd niceboy
-   go mod download
    ```
-
-2. **Configure**:
+3. **Config Setup**:
    ```bash
-   touch config.yaml # Add your exchange and keys
+   cp config.example.yaml config.yaml
+   # Edit config.yaml with your API keys
    ```
-
-3. **Run**:
+4. **Launch TUI**:
    ```bash
    go run cmd/niceboy/main.go
    ```

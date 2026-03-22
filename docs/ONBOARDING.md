@@ -1,5 +1,8 @@
 # 🚀 Developer Onboarding Guide
 
+> [!NOTE]
+> **Just want to run the bot?** Follow the [User Journey (Run Guide)](./RUN.md) for simple deployment steps.
+
 Welcome to the `niceboy` project! This document will help you set up your local development environment and get started with the codebase.
 
 ## 📋 Prerequisites
