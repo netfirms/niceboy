@@ -36,7 +36,7 @@ func TestBinanceExchange_GetPrice(t *testing.T) {
 func TestBitkubExchange_GetPrice(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"result": {"THB_BTC": {"last": 2000000.0}}}`))
+		w.Write([]byte(`[{"symbol":"BTC_THB","last":2000000.0}]`))
 	}))
 	defer server.Close()
 
@@ -49,8 +49,9 @@ func TestBitkubExchange_GetPrice(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	if price != 2000000.0 {
-		t.Errorf("expected 2000000.0, got %f", price)
+		t.Errorf("expected price 2000000.0, got %f", price)
 	}
 
 	if b.GetName() != "bitkub" {
@@ -307,6 +308,11 @@ func TestBinanceExchange_GetOpenOrders(t *testing.T) {
 
 func TestBitkubExchange_GetBalances(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/api/v3/servertime") {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`1699376552354`))
+			return
+		}
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"error": 0, "result": {"BTC": {"available": 1.0, "reserved": 0.1}}}`))
 	}))
@@ -330,6 +336,11 @@ func TestBitkubExchange_GetBalances(t *testing.T) {
 
 func TestBitkubExchange_GetOpenOrders(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/api/v3/servertime") {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`1699376552354`))
+			return
+		}
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"error": 0, "result": [{"id": 123, "symbol": "THB_BTC", "side": "buy", "rate": 2000000.0, "amount": 0.01}]}`))
 	}))
@@ -348,5 +359,34 @@ func TestBitkubExchange_GetOpenOrders(t *testing.T) {
 
 	if len(orders) != 1 || orders[0].Symbol != "THB_BTC" {
 		t.Errorf("expected 1 order for THB_BTC, got %v", orders)
+	}
+}
+
+func TestBitkubExchange_GetOpenOrders_Map(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/api/v3/servertime") {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`1699376552354`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		// Return map format
+		w.Write([]byte(`{"error": 0, "result": {"THB_BTC": [{"id": 123, "side": "buy", "rate": 2000000.0, "amount": 0.01}]}}`))
+	}))
+	defer server.Close()
+
+	b := &BitkubExchange{
+		BaseURL: server.URL,
+		client:  &http.Client{},
+		secret:  "YOUR_DUMMY",
+	}
+
+	orders, err := b.GetOpenOrders(context.Background(), "THB_BTC")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(orders) != 1 || orders[0].Symbol != "THB_BTC" || orders[0].ID != "123" {
+		t.Errorf("expected 1 order for THB_BTC with ID 123, got %v", orders)
 	}
 }

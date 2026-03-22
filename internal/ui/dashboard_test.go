@@ -1,9 +1,9 @@
 package ui
 
 import (
-	"fmt"
 	"niceboy/internal/exchange"
 	"niceboy/internal/strategy"
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -11,7 +11,7 @@ import (
 )
 
 func TestNewModel(t *testing.T) {
-	m := NewModel("binance", "BTCUSDT", true)
+	m := NewModel("binance", "BTCUSDT", true, nil, "sma_crossover", map[string]interface{}{"short": 5}, 0.01)
 	if m.ExchangeName != "binance" {
 		t.Errorf("expected binance, got %s", m.ExchangeName)
 	}
@@ -24,7 +24,7 @@ func TestNewModel(t *testing.T) {
 }
 
 func TestModelUpdates(t *testing.T) {
-	m := NewModel("bitkub", "THB_BTC", false)
+	m := NewModel("bitkub", "THB_BTC", false, nil, "sma_crossover", nil, 0.01)
 	m.Viewport = viewport.New(100, 20)
 	
 	// Test Price Update
@@ -57,18 +57,30 @@ func TestModelUpdates(t *testing.T) {
 }
 
 func TestViewRendering(t *testing.T) {
-	m := NewModel("binance", "BTCUSDT", true)
+	m := NewModel("binance", "BTCUSDT", true, nil, "sma_crossover", map[string]interface{}{"short": 10}, 0.01)
 	m.Width = 100
 	m.Height = 40
 	m.Ready = true
 	m.Viewport = viewport.New(100, 20)
 
-	// Just ensure View() doesn't panic and returns content
+	// Test Sorted Balances
+	m.Balances = map[string]float64{
+		"USDT": 100.0,
+		"BTC":  0.5,
+		"ETH":  2.0,
+	}
 	view := m.View()
-	if view == "" {
-		t.Error("View returned empty string")
+	
+	// Check if they appear in sorted order: BTC, ETH, USDT
+	btcIdx := strings.Index(view, "BTC:")
+	ethIdx := strings.Index(view, "ETH:")
+	usdtIdx := strings.Index(view, "USDT:")
+	
+	if btcIdx == -1 || ethIdx == -1 || usdtIdx == -1 {
+		t.Error("One or more balances missing from View")
 	}
 	
-	// Look for specific elements in the view
-	fmt.Print(view) // for visual debug in test output if needed
+	if !(btcIdx < ethIdx && ethIdx < usdtIdx) {
+		t.Errorf("Balances not sorted correctly in View. Indices: BTC=%d, ETH=%d, USDT=%d", btcIdx, ethIdx, usdtIdx)
+	}
 }

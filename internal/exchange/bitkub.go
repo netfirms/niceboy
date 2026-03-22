@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -34,49 +35,81 @@ func NewBitkubExchange(apiKey, secretKey string) *BitkubExchange {
 	}
 }
 
+func (b *BitkubExchange) getServerTime() (int64, error) {
+	resp, err := b.client.Get(b.BaseURL + "/api/v3/servertime")
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+	var ts int64
+	if err := json.NewDecoder(resp.Body).Decode(&ts); err != nil {
+		return 0, err
+	}
+	return ts, nil
+}
+
 func (b *BitkubExchange) GetName() string {
 	return "bitkub"
 }
 
-func (b *BitkubExchange) GetPrice(ctx context.Context, symbol string) (float64, error) {
-	url := fmt.Sprintf("%s/api/market/ticker?sym=%s", b.BaseURL, symbol)
-	
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return 0, err
+func (b *BitkubExchange) normalizeSymbol(symbol string) string {
+	s := strings.ToUpper(symbol)
+	if strings.HasPrefix(s, "THB_") {
+		// Convert THB_BTC to BTC_THB
+		parts := strings.Split(s, "_")
+		if len(parts) == 2 {
+			return parts[1] + "_" + parts[0]
+		}
 	}
+	return s
+}
 
-	resp, err := b.client.Do(req)
+func (b *BitkubExchange) denormalizeSymbol(symbol string) string {
+	s := strings.ToUpper(symbol)
+	if strings.HasSuffix(s, "_THB") {
+		// Convert BTC_THB to THB_BTC
+		parts := strings.Split(s, "_")
+		if len(parts) == 2 {
+			return parts[1] + "_" + parts[0]
+		}
+	}
+	return s
+}
+
+func (b *BitkubExchange) GetPrice(ctx context.Context, symbol string) (float64, error) {
+	normSym := b.normalizeSymbol(symbol)
+	url := fmt.Sprintf("%s/api/v3/market/ticker?sym=%s", b.BaseURL, normSym)
+	resp, err := b.client.Get(url)
 	if err != nil {
 		return 0, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("unexpected status: %d", resp.StatusCode)
+		return 0, fmt.Errorf("bitkub api failed, status: %d", resp.StatusCode)
 	}
 
-	var data struct {
-		Result map[string]struct {
-			Last float64 `json:"last"`
-		} `json:"result"`
+	// Bitkub V3 Ticker returns an array: [{"symbol":"BTC_THB", "last": ...}]
+	var data []struct {
+		Last float64 `json:"last"`
 	}
-
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
 		return 0, err
 	}
 
-	ticker, ok := data.Result[symbol]
-	if !ok {
-		return 0, fmt.Errorf("no ticker data for symbol: %s", symbol)
+	if len(data) == 0 {
+		return 0, fmt.Errorf("symbol not found: %s", normSym)
 	}
 
-	return ticker.Last, nil
+	return data[0].Last, nil
 }
 
 func (b *BitkubExchange) SubscribePrice(ctx context.Context, symbol string, ch chan<- MarketData) error {
-	streamName := strings.ToLower(fmt.Sprintf("market.ticker.%s", symbol))
-	wsURL := fmt.Sprintf("%s/%s", b.BaseWSURL, streamName)
+	// WebSocket uniquely still uses the quote_base format (e.g. thb_btc)
+	// while REST V3 uses base_quote (e.g. btc_thb).
+	normSym := strings.ToLower(symbol)
+	wsURL := fmt.Sprintf("%s/market.ticker.%s", b.BaseWSURL, normSym)
+	header := http.Header{}
 
 	go func() {
 		backoff := time.Second
@@ -85,7 +118,7 @@ func (b *BitkubExchange) SubscribePrice(ctx context.Context, symbol string, ch c
 			case <-ctx.Done():
 				return
 			default:
-				c, _, err := websocket.DefaultDialer.DialContext(ctx, wsURL, nil)
+				c, _, err := websocket.DefaultDialer.DialContext(ctx, wsURL, header)
 				if err != nil {
 					time.Sleep(backoff)
 					if backoff < 30*time.Second {
@@ -143,9 +176,10 @@ func (b *BitkubExchange) ExecuteOrder(ctx context.Context, symbol string, side O
 		typ = "limit"
 	}
 
+	normSym := b.normalizeSymbol(symbol)
 	payload := map[string]interface{}{
-		"sym":  symbol,
-		"amt":  quantity, // Bitkub 'amt' definition depends on buy/sell but we pass it generically.
+		"sym":  normSym,
+		"amt":  quantity,
 		"rat":  price,
 		"type": typ,
 	}
@@ -155,7 +189,11 @@ func (b *BitkubExchange) ExecuteOrder(ctx context.Context, symbol string, side O
 		return err
 	}
 
-	ts := time.Now().UnixNano() / 1e6
+	ts, err := b.getServerTime()
+	if err != nil {
+		ts = time.Now().UnixNano() / 1e6 // Fallback
+	}
+	
 	sigStr := fmt.Sprintf("%dPOST%s%s", ts, endpoint, string(payloadBytes))
 
 	mac := hmac.New(sha256.New, []byte(b.secret))
@@ -198,7 +236,10 @@ func (b *BitkubExchange) ExecuteOrder(ctx context.Context, symbol string, side O
 func (b *BitkubExchange) GetBalances(ctx context.Context) (map[string]float64, error) {
 	endpoint := "/api/v3/market/balances"
 	
-	ts := time.Now().UnixNano() / 1e6
+	ts, err := b.getServerTime()
+	if err != nil {
+		ts = time.Now().UnixNano() / 1e6 // Fallback
+	}
 	sigStr := fmt.Sprintf("%dPOST%s", ts, endpoint)
 
 	mac := hmac.New(sha256.New, []byte(b.secret))
@@ -211,6 +252,7 @@ func (b *BitkubExchange) GetBalances(ctx context.Context) (map[string]float64, e
 	}
 
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-BTK-APIKEY", b.apiKey)
 	req.Header.Set("X-BTK-TIMESTAMP", fmt.Sprintf("%d", ts))
 	req.Header.Set("X-BTK-SIGN", sig)
@@ -251,21 +293,30 @@ func (b *BitkubExchange) GetBalances(ctx context.Context) (map[string]float64, e
 
 func (b *BitkubExchange) GetOpenOrders(ctx context.Context, symbol string) ([]Order, error) {
 	endpoint := "/api/v3/market/my-open-orders"
-	query := "sym=" + strings.ToUpper(symbol)
-
-	ts := time.Now().UnixNano() / 1e6
+	normSym := b.normalizeSymbol(symbol)
+	query := "sym=" + normSym
+	
+	ts, err := b.getServerTime()
+	if err != nil {
+		ts = time.Now().UnixNano() / 1e6 // Fallback
+	}
+	
+	// Bitkub V3 GET signature often includes the '?' in the payload.
+	// But let's try to be very precise.
 	sigStr := fmt.Sprintf("%dGET%s?%s", ts, endpoint, query)
 
 	mac := hmac.New(sha256.New, []byte(b.secret))
 	mac.Write([]byte(sigStr))
 	sig := hex.EncodeToString(mac.Sum(nil))
 
-	req, err := http.NewRequestWithContext(ctx, "GET", b.BaseURL+endpoint+"?"+query, nil)
+	url := b.BaseURL + endpoint + "?" + query
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	req.Header.Set("Accept", "application/json")
+	// Removing Content-Type for GET as it might cause issues on some servers
 	req.Header.Set("X-BTK-APIKEY", b.apiKey)
 	req.Header.Set("X-BTK-TIMESTAMP", fmt.Sprintf("%d", ts))
 	req.Header.Set("X-BTK-SIGN", sig)
@@ -276,61 +327,157 @@ func (b *BitkubExchange) GetOpenOrders(ctx context.Context, symbol string) ([]Or
 	}
 	defer resp.Body.Close()
 
+	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("bitkub api failed, status: %d", resp.StatusCode)
+		return nil, fmt.Errorf("bitkub api failed, status: %d, body: %s", resp.StatusCode, string(body))
+	}
+	
+	var envelope struct {
+		Error  int             `json:"error"`
+		Result json.RawMessage `json:"result"`
+	}
+	if err := json.Unmarshal(body, &envelope); err != nil {
+		return nil, fmt.Errorf("bitkub envelope unmarshal error: %v", err)
 	}
 
-	// But according to docs, rate and amount might be strings,
-	// wait, let's parse using json.Unmarshal with interface{} or json.RawMessage if we want to be safe,
-	// or decode as string? The V3 docs examples show them as float or string randomly.
-	// We'll decode using string and parse float if needed. I will use struct with string type.
+	if envelope.Error != 0 {
+		return nil, fmt.Errorf("bitkub error code: %d", envelope.Error)
+	}
+
+	trimmed := bytes.TrimSpace(envelope.Result)
+	if len(trimmed) == 0 {
+		return nil, nil
+	}
+
+	var res []Order
 	
-	body, _ := io.ReadAll(resp.Body)
-	var strData struct {
-		Error  int `json:"error"`
-		Result []struct {
+	// Case 1: Result is an array []
+	if trimmed[0] == '[' {
+		var orders []struct {
+			ID     interface{} `json:"id"`
+			Symbol string      `json:"symbol"`
+			Side   string      `json:"side"`
+			Rate   interface{} `json:"rate"`
+			Amount interface{} `json:"amount"`
+		}
+		if err := json.Unmarshal(trimmed, &orders); err != nil {
+			return nil, fmt.Errorf("bitkub array unmarshal error: %v (body: %s)", err, string(body))
+		}
+		for _, o := range orders {
+			res = append(res, b.parseOrder(o.ID, o.Symbol, o.Side, o.Rate, o.Amount))
+		}
+		return res, nil
+	}
+
+	// Case 2: Result is a map {}
+	if trimmed[0] == '{' {
+		var orderMap map[string][]struct {
 			ID     interface{} `json:"id"`
 			Side   string      `json:"side"`
 			Rate   interface{} `json:"rate"`
 			Amount interface{} `json:"amount"`
+		}
+		if err := json.Unmarshal(trimmed, &orderMap); err != nil {
+			// Maybe it's not a map of arrays? Try map of single objects just in case.
+			var singleOrderMap map[string]struct {
+				ID     interface{} `json:"id"`
+				Side   string      `json:"side"`
+				Rate   interface{} `json:"rate"`
+				Amount interface{} `json:"amount"`
+			}
+			if err2 := json.Unmarshal(trimmed, &singleOrderMap); err2 == nil {
+				for sym, o := range singleOrderMap {
+					res = append(res, b.parseOrder(o.ID, sym, o.Side, o.Rate, o.Amount))
+				}
+				return res, nil
+			}
+			return nil, fmt.Errorf("bitkub map unmarshal error: %v (body: %s)", err, string(body))
+		}
+		for sym, orders := range orderMap {
+			for _, o := range orders {
+				res = append(res, b.parseOrder(o.ID, sym, o.Side, o.Rate, o.Amount))
+			}
+		}
+		return res, nil
+	}
+
+	return nil, fmt.Errorf("bitkub unexpected result format: %s", string(trimmed))
+}
+
+// Helper to parse polymorphic types from Bitkub
+func (b *BitkubExchange) parseOrder(id interface{}, symbol, sideStr string, rate, amount interface{}) Order {
+	var r, a float64
+	switch v := rate.(type) {
+	case float64:
+		r = v
+	case string:
+		fmt.Sscanf(v, "%f", &r)
+	}
+	switch v := amount.(type) {
+	case float64:
+		a = v
+	case string:
+		fmt.Sscanf(v, "%f", &a)
+	}
+
+	side := Buy
+	if strings.ToLower(sideStr) == "sell" {
+		side = Sell
+	}
+	return Order{
+		ID:       fmt.Sprintf("%v", id),
+		Symbol:   b.denormalizeSymbol(symbol),
+		Side:     side,
+		Price:    r,
+		Quantity: a,
+	}
+}
+
+func (b *BitkubExchange) GetSymbolInfo(ctx context.Context, symbol string) (SymbolInfo, error) {
+	normSym := b.normalizeSymbol(symbol)
+	resp, err := b.client.Get(b.BaseURL + "/api/v3/market/symbols")
+	if err != nil {
+		return SymbolInfo{}, err
+	}
+	defer resp.Body.Close()
+
+	var data struct {
+		Error  int `json:"error"`
+		Result []struct {
+			Symbol        string  `json:"symbol"`
+			BaseAsset     string  `json:"base_asset"`
+			QuoteAsset    string  `json:"quote_asset"`
+			PriceScale    int     `json:"price_scale"`
+			QuantityScale int     `json:"quantity_scale"`
+			MinQuoteSize  float64 `json:"min_quote_size"`
+			PriceStep     string  `json:"price_step"`
+			QuantityStep  string  `json:"quantity_step"`
 		} `json:"result"`
 	}
-	if err := json.Unmarshal(body, &strData); err != nil {
-		return nil, err
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return SymbolInfo{}, err
 	}
-	if strData.Error != 0 {
-		return nil, fmt.Errorf("bitkub error code: %d", strData.Error)
+	if data.Error != 0 {
+		return SymbolInfo{}, fmt.Errorf("bitkub error code: %d", data.Error)
 	}
 
-	var res []Order
-	for _, o := range strData.Result {
-		var rate, amount float64
-		// Parse rate
-		switch v := o.Rate.(type) {
-		case float64:
-			rate = v
-		case string:
-			fmt.Sscanf(v, "%f", &rate)
+	for _, s := range data.Result {
+		if s.Symbol == normSym {
+			ps, _ := strconv.ParseFloat(s.PriceStep, 64)
+			qs, _ := strconv.ParseFloat(s.QuantityStep, 64)
+			return SymbolInfo{
+				Symbol:         b.denormalizeSymbol(s.Symbol),
+				BaseAsset:      s.BaseAsset,
+				QuoteAsset:     s.QuoteAsset,
+				BasePrecision:  s.QuantityScale,
+				QuotePrecision: s.PriceScale,
+				MinQty:         qs,
+				MinNotional:    s.MinQuoteSize,
+				StepSize:       qs,
+				TickSize:       ps,
+			}, nil
 		}
-		// Parse amount
-		switch v := o.Amount.(type) {
-		case float64:
-			amount = v
-		case string:
-			fmt.Sscanf(v, "%f", &amount)
-		}
-
-		side := Buy
-		if strings.ToLower(o.Side) == "sell" {
-			side = Sell
-		}
-		res = append(res, Order{
-			ID:       fmt.Sprintf("%v", o.ID),
-			Symbol:   symbol,
-			Side:     side,
-			Price:    rate,
-			Quantity: amount,
-		})
 	}
-	return res, nil
+
+	return SymbolInfo{}, fmt.Errorf("symbol not found: %s", normSym)
 }

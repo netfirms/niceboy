@@ -22,6 +22,7 @@ type Signal struct {
 	Type   SignalType
 	Symbol string
 	Price  float64
+	Profit float64 // P&L amount for SELL signals
 	Reason string
 }
 
@@ -29,4 +30,6 @@ type Signal struct {
 type Strategy interface {
 	GetName() string
 	OnMarketData(data exchange.MarketData) Signal
+	GetState() map[string]interface{}
+	LoadState(state map[string]interface{})
 }
