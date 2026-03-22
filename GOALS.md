@@ -23,8 +23,10 @@ The primary objective of `niceboy` is to provide a professional-grade, low-footp
 ## 🛠️ Developer Experience (DX)
 
 - **Strategy SDK**: Clean, well-documented API for developing custom strategies.
-- **Simulation**: High-fidelity backtesting engine with realistic slippage and latency modeling.
-- **Observability**: Rich logging and real-time dashboarding built-in.
+- **Simulation**: High-fidelity dry-run simulator with live data feeds (Implemented).
+- **Observability**: Rich structured JSON logging and interactive real-time dashboarding (Implemented).
+- **Resilience**: Self-healing WebSocket connections with exponential backoff (Implemented).
+- **Security Guardrails**: Automated pre-commit scanning for leaked secrets (Implemented).
 
 ---
 
