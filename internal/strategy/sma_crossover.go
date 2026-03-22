@@ -2,6 +2,7 @@ package strategy
 
 import (
 	"fmt"
+	"math"
 	"niceboy/internal/exchange"
 )
 
@@ -96,13 +97,16 @@ type SMACrossover struct {
 	takeProfitPct   float64
 	trailingStopPct float64
 	trendPeriod     int
+	minGapPct       float64
+	confirmTicks    int
 
-	prices       []float64
-	maxBuffer    int
-	entryPrice   float64
-	highestPrice float64
-	inPosition   bool
-	lastSignal   SignalType
+	prices              []float64
+	maxBuffer           int
+	entryPrice          float64
+	highestPrice        float64
+	inPosition          bool
+	lastSignal          SignalType
+	currentConfirmTicks int
 }
 
 func (s *SMACrossover) GetName() string {
@@ -210,8 +214,30 @@ func (s *SMACrossover) OnMarketData(data exchange.MarketData) Signal {
 	}
 
 	// 2. Check Signals
+	gap := 0.0
+	if longSMA > 0 {
+		gap = (math.Abs(shortSMA-longSMA) / longSMA) * 100.0
+	}
+
 	if shortSMA > longSMA {
+		// Potential BUY
 		if !s.inPosition && s.lastSignal != Buy {
+			// Hysteresis Filter
+			if gap < s.minGapPct {
+				s.currentConfirmTicks = 0
+				sig.Type = Wait
+				sig.Reason = fmt.Sprintf("Gap too small (%.4f%% < %.2f%%)", gap, s.minGapPct)
+				return sig
+			}
+
+			// Confirmation Filter
+			s.currentConfirmTicks++
+			if s.currentConfirmTicks < s.confirmTicks {
+				sig.Type = Wait
+				sig.Reason = fmt.Sprintf("Confirming cross UP (%d/%d)...", s.currentConfirmTicks, s.confirmTicks)
+				return sig
+			}
+
 			// Trend Filter Confirmation
 			if s.trendPeriod > 0 && data.Price < trendEMA {
 				sig.Type = Wait
@@ -223,10 +249,11 @@ func (s *SMACrossover) OnMarketData(data exchange.MarketData) Signal {
 			s.entryPrice = data.Price
 			s.highestPrice = data.Price // Reset peak
 			s.lastSignal = Buy
+			s.currentConfirmTicks = 0 // Reset after trigger
 
 			sig.Type = Buy
 			sig.EntryPrice = s.entryPrice
-			sig.Reason = "Short SMA crossed above Long SMA (Trend Confirmed)"
+			sig.Reason = fmt.Sprintf("Short SMA crossed above Long SMA (Gap: %.2f%%)", gap)
 
 			// Recalculate guardrails for the BUY signal
 			if s.stopLossPct > 0 {
@@ -241,16 +268,40 @@ func (s *SMACrossover) OnMarketData(data exchange.MarketData) Signal {
 
 			return sig
 		}
+		// Reset confirmation if we are already in position or last signal was BUY
+		s.currentConfirmTicks = 0
 	} else if shortSMA < longSMA {
+		// Potential SELL
 		if s.inPosition && s.lastSignal != Sell {
+			// Hysteresis for EXIT if desired (optional, usually we want to exit fast)
+			if gap < s.minGapPct {
+				s.currentConfirmTicks = 0
+				sig.Type = Wait
+				sig.Reason = fmt.Sprintf("Gap too small for exit (%.4f%%)", gap)
+				return sig
+			}
+
+			// Confirmation for EXIT
+			s.currentConfirmTicks++
+			if s.currentConfirmTicks < s.confirmTicks {
+				sig.Type = Wait
+				sig.Reason = fmt.Sprintf("Confirming cross DOWN (%d/%d)...", s.currentConfirmTicks, s.confirmTicks)
+				return sig
+			}
+
 			profit := data.Price - s.entryPrice
 			s.inPosition = false
 			s.lastSignal = Sell
+			s.currentConfirmTicks = 0 // Reset after trigger
+
 			sig.Type = Sell
 			sig.Profit = profit
-			sig.Reason = "Short SMA crossed below Long SMA"
+			sig.Reason = fmt.Sprintf("Short SMA crossed below Long SMA (Gap: %.2f%%)", gap)
 			return sig
 		}
+		s.currentConfirmTicks = 0
+	} else {
+		s.currentConfirmTicks = 0
 	}
 
 	sig.Type = Wait
