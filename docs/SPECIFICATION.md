@@ -37,6 +37,7 @@ Adapters must implement the following:
 - `GetName() string`: Returns the ID of the exchange.
 - `GetPrice(ctx, symbol) (float64, error)`: Unicast price fetch.
 - `SubscribePrice(ctx, symbol, ch)`: Real-time stream (WebSocket).
+- `ExecuteOrder(ctx, symbol, side, type, qty, price) error`: Live trade execution.
 
 ### 3.2 Strategy Interface
 - `GetName() string`: Unique identifier for the registry.

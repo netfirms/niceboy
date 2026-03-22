@@ -13,14 +13,14 @@ sequenceDiagram
     User->>Config: 1. Set API Keys & Choice
     User->>Bot: 2. Launch Bot
     Bot->>Config: 3. Load Settings
-    Bot->>Exch: 4. Connect & Poll Prices
-    Exch-->>Bot: 5. Market Data
+    Bot->>Exch: 4. Connect WebSocket Stream
+    Exch-->>Bot: 5. Real-time Market Data
     Bot->>Bot: 6. Run Strategy (e.g. SMA)
     Bot->>UI: 7. Update Dashboard
     alt Trade Signal Found
-        Bot->>Exch: 8. Place Order
+        Bot->>Exch: 8. Execute Market/Limit Order
         Exch-->>Bot: 9. Execution Report
-        Bot->>UI: 10. Log Activity
+        Bot->>UI: 10. Update Trade Count & Logs
     end
     UI-->>User: Visual Feedback
 ```
@@ -29,7 +29,7 @@ sequenceDiagram
 
 1.  **Configuration**: User provides API credentials and selects the active exchange and strategy in `config.yaml`.
 2.  **Lifecycle Start**: The bot initializes the selected exchange adapter and strategy.
-3.  **Real-time Loop**: Market data is fetched via WebSocket or REST.
+3.  **Real-time Loop**: Market data is streamed instantly via WebSocket connections (e.g., Binance `WsBookTickerServe`).
 4.  **Intelligence**: The strategy engine processes the data and generates signals (BUY/SELL).
-5.  **Execution**: The execution engine handles orders and risk management.
+5.  **Execution**: The execution engine handles exact order payload structure and fires trades based on strategy cues.
 6.  **Visualization**: Everything is presented in a clean, interactive TUI.

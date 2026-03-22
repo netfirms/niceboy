@@ -65,15 +65,23 @@ go build -o niceboy cmd/niceboy/main.go
 
 ## 📊 Sample Output
 
-Upon a successful start, you should see output similar to this:
+Upon a successful start, the terminal will render the structured **Bubble Tea / Lipgloss Dashboard**:
+
 ```text
-⚡ niceboy starting...
-Active exchange: binance
-Using strategy: sma_crossover
-Entering trading loop...
-[BTCUSDT] sma_crossover Action: WAIT | Reason: Collecting data...
-...
-🚀 niceboy ready.
+ ⚡ niceboy ⚡
+ BINANCE : BTCUSDT
+ ---------------------------
+ Status:  Connected
+ Price:   $60400.00
+ Trades:  1
+ Updated: 15:04:05.123
+ ---------------------------
+ Current Signal: BUY
+ Strategy Logic: Price crossed above SMA (60400.0 > 60300.0)
+
+ [15:04:05] EXEC: Placing BUY order for 0.0100 at Market
+ [15:04:05] SUCCESS: BUY order executed
+ [q:quit]
 ```
 
 ---

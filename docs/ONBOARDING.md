@@ -55,4 +55,9 @@ Before submitting a PR, please read:
 - [ARCHITECTURE.md](../ARCHITECTURE.md): The high-level design philosophy.
 - [docs/SPECIFICATION.md](./SPECIFICATION.md): The technical "Source of Truth".
 
+**Key Technical Nuances for Contributors:**
+- **UI Tweaks**: Any graphical additions must utilize the `charmbracelet/lipgloss` styling engine inside `internal/ui`.
+- **Latency**: Strategy additions (`OnMarketData`) flow directly from the WebSocket loop, so they must be allocation-free to prevent GC pauses.
+- **Execution**: Mock out `ExecuteOrder` calls in `adapter_test.go` when adding new exchange logic.
+
 Happy Coding! ⚡
