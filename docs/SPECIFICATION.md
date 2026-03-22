@@ -36,14 +36,14 @@ type Signal struct {
 Adapters must implement the following:
 - `GetName() string`: Returns the ID of the exchange.
 - `GetPrice(ctx, symbol) (float64, error)`: Unicast price fetch.
-- `SubscribePrice(ctx, symbol, ch)`: Real-time stream (WebSocket).
+- `SubscribePrice(ctx, symbol, ch)`: Real-time stream (WebSocket). **MUST** implement internal self-healing with exponential backoff.
 - `ExecuteOrder(ctx, symbol, side, type, qty, price) error`: Live trade execution.
 - `GetBalances(ctx) (map[string]float64, error)`: Aggregated account holdings.
 - `GetOpenOrders(ctx, symbol) ([]Order, error)`: Staged market instructions.
 
 ### 3.2 Strategy Interface
 - `GetName() string`: Unique identifier for the registry.
-- `OnMarketData(MarketData) Signal`: Stateless (or stateful) logic core.
+- `OnMarketData(MarketData) Signal`: Stateful logic core. Strategies **SHOULD** track `inPosition` and `entryPrice` for risk management.
 
 ## 4. Operational Requirements
 

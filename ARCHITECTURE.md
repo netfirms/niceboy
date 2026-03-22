@@ -30,8 +30,9 @@
 ### 5. 💰 Trading Profit (Execution)
 - **Dry Run Execution**: Built-in simulator allows for risk-free strategy validation using live price feeds.
 - **Adapter Pattern**: Unified interface for Binance/Bitkub ensures consistent strategy performance across markets.
-- **Resilient Execution**: Panic recovery and context timeouts ensure the bot stays alive and responsive.
-- **Execution Precision**: Decoupled strategy and execution engines allow for sub-second order management.
+- **Managed Risk Guardrails**: Native support for **Stop Loss** and **Take Profit** directly within the strategy engine.
+- **Resilient Execution**: Self-healing WebSocket connections with exponential backoff and panic recovery ensure 24/7 uptime.
+- **Execution Precision**: Stateful position tracking prevents redundant orders and ensures precise exit timing.
 
 ## 📡 Data Flow
 

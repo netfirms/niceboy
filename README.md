@@ -25,8 +25,11 @@ sequenceDiagram
 
 - **🚀 Low Footprint**: Optimized Go core with sub-10MB memory usage.
 - **🖥️ Tabbed TUI Dashboard**: Professionally styled terminal user interface with multiple views for **Stats**, **Portfolio**, **Orders**, and **Audit Logs**.
-- **🧪 Dry Run Simulator**: Safely test strategies with real-time market data without risking actual funds.
-- **🛡️ Git Security Hooks**: Automated pre-commit scanning to prevent API key leaks and ensure 100% test passing.
+- **🧪 Dry Run Simulator**: Safely test strategies with real-time market data.
+- 🛡️ **Managed Risk**: Built-in **Stop Loss** and **Take Profit** guardrails.
+- 🔄 **Self-Healing**: Automatic WebSocket reconnection with exponential backoff.
+- 📊 **Audit Logs**: High-precision JSON logging for every trade and signal.
+- 🏗️ **Git Security Hooks**: Pre-commit scanning for leaked secrets and QA enforcement, ensuring 100% test passing.
 - **🔌 Multi-Exchange**: Production-ready adapters for **Binance** and **Bitkub** (V3 API).
 - **📊 Structured Auditing**: Dual-output logging (Console + JSON) for full forensic traceability.
 
