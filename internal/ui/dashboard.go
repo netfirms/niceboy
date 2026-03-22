@@ -18,6 +18,8 @@ type PriceMsg exchange.MarketData
 type SignalMsg strategy.Signal
 type AuditMsg string
 type TradeExecutedMsg struct{}
+type BalanceUpdateMsg map[string]float64
+type OpenOrdersUpdateMsg []exchange.Order
 
 // Styles
 var (
@@ -60,6 +62,9 @@ type Model struct {
 	Status       string
 	TradeCount   int
 
+	Balances   map[string]float64
+	OpenOrders []exchange.Order
+
 	AuditLog []string
 	Viewport viewport.Model
 	Ready    bool
@@ -70,6 +75,7 @@ func NewModel(exchangeName, symbol string) Model {
 		ExchangeName: exchangeName,
 		Symbol:       symbol,
 		Status:       "Initializing...",
+		Balances:     make(map[string]float64),
 	}
 }
 
@@ -107,6 +113,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case AuditMsg:
 		m.addAudit(string(msg))
+
+	case BalanceUpdateMsg:
+		m.Balances = msg
+
+	case OpenOrdersUpdateMsg:
+		m.OpenOrders = msg
 
 	case TradeExecutedMsg:
 		m.TradeCount++
@@ -175,9 +187,34 @@ func (m Model) View() string {
 	// Layout the Header and top boxes
 	topSection := lipgloss.JoinHorizontal(lipgloss.Center, title, statsBox, signalBox)
 
-	// 4. Build final view
-	return fmt.Sprintf("%s\n\n%s\n%s", 
+	// 4. Balances and Orders Box
+	var balancesStr []string
+	for k, v := range m.Balances {
+		balancesStr = append(balancesStr, fmt.Sprintf("%s: %.4f", k, v))
+	}
+	balText := "Balances:\n" + strings.Join(balancesStr, " | ")
+	if len(m.Balances) == 0 {
+		balText = "Balances: Loading..."
+	}
+
+	ordersStr := fmt.Sprintf("Open Orders: %d", len(m.OpenOrders))
+	for _, o := range m.OpenOrders {
+		os := "B"
+		if o.Side == exchange.Sell {
+			os = "S"
+		}
+		ordersStr += fmt.Sprintf("\n[%s] %s %.4f @ %.2f", o.ID, os, o.Quantity, o.Price)
+	}
+	
+	accContent := fmt.Sprintf("%s\n──────────────────\n%s", balText, ordersStr)
+	accBox := boxStyle.Render(accContent)
+
+	midSection := lipgloss.JoinHorizontal(lipgloss.Left, accBox)
+
+	// 5. Build final view
+	return fmt.Sprintf("%s\n%s\n\n%s\n%s", 
 		topSection,
+		midSection,
 		m.Viewport.View(),
 		auditStyle.Render(" [q:quit] "))
 }

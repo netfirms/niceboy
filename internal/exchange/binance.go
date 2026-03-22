@@ -71,6 +71,53 @@ func (b *BinanceExchange) SubscribePrice(ctx context.Context, symbol string, ch 
 	return nil
 }
 
+func (b *BinanceExchange) GetBalances(ctx context.Context) (map[string]float64, error) {
+	acc, err := b.client.NewGetAccountService().Do(ctx)
+	if err != nil {
+		return nil, err
+	}
+	balances := make(map[string]float64)
+	for _, bal := range acc.Balances {
+		var free float64
+		fmt.Sscanf(bal.Free, "%f", &free)
+		var locked float64
+		fmt.Sscanf(bal.Locked, "%f", &locked)
+		total := free + locked
+		if total > 0 {
+			balances[bal.Asset] = total
+		}
+	}
+	return balances, nil
+}
+
+func (b *BinanceExchange) GetOpenOrders(ctx context.Context, symbol string) ([]Order, error) {
+	orders, err := b.client.NewListOpenOrdersService().Symbol(symbol).Do(ctx)
+	if err != nil {
+		return nil, err
+	}
+	
+	var result []Order
+	for _, o := range orders {
+		var p, q float64
+		fmt.Sscanf(o.Price, "%f", &p)
+		fmt.Sscanf(o.OrigQuantity, "%f", &q)
+		
+		side := Buy
+		if o.Side == binance.SideTypeSell {
+			side = Sell
+		}
+		
+		result = append(result, Order{
+			ID:       fmt.Sprintf("%d", o.OrderID),
+			Symbol:   o.Symbol,
+			Side:     side,
+			Price:    p,
+			Quantity: q,
+		})
+	}
+	return result, nil
+}
+
 func (b *BinanceExchange) ExecuteOrder(ctx context.Context, symbol string, side OrderSide, orderType OrderType, quantity float64, price float64) error {
 	sideType := binance.SideTypeBuy
 	if side == Sell {

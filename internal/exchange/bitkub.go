@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -178,4 +179,144 @@ func (b *BitkubExchange) ExecuteOrder(ctx context.Context, symbol string, side O
 	}
 
 	return nil
+}
+
+func (b *BitkubExchange) GetBalances(ctx context.Context) (map[string]float64, error) {
+	endpoint := "/api/v3/market/balances"
+	
+	ts := time.Now().UnixNano() / 1e6
+	sigStr := fmt.Sprintf("%dPOST%s", ts, endpoint)
+
+	mac := hmac.New(sha256.New, []byte(b.secret))
+	mac.Write([]byte(sigStr))
+	sig := hex.EncodeToString(mac.Sum(nil))
+
+	req, err := http.NewRequestWithContext(ctx, "POST", b.BaseURL+endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("X-BTK-APIKEY", b.apiKey)
+	req.Header.Set("X-BTK-TIMESTAMP", fmt.Sprintf("%d", ts))
+	req.Header.Set("X-BTK-SIGN", sig)
+
+	resp, err := b.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("bitkub api failed, status: %d", resp.StatusCode)
+	}
+
+	var data struct {
+		Error  int `json:"error"`
+		Result map[string]struct {
+			Available float64 `json:"available"`
+			Reserved  float64 `json:"reserved"`
+		} `json:"result"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return nil, err
+	}
+	if data.Error != 0 {
+		return nil, fmt.Errorf("bitkub error code: %d", data.Error)
+	}
+
+	balances := make(map[string]float64)
+	for asset, detail := range data.Result {
+		total := detail.Available + detail.Reserved
+		if total > 0 {
+			balances[asset] = total
+		}
+	}
+	return balances, nil
+}
+
+func (b *BitkubExchange) GetOpenOrders(ctx context.Context, symbol string) ([]Order, error) {
+	endpoint := "/api/v3/market/my-open-orders"
+	query := "sym=" + strings.ToUpper(symbol)
+
+	ts := time.Now().UnixNano() / 1e6
+	sigStr := fmt.Sprintf("%dGET%s?%s", ts, endpoint, query)
+
+	mac := hmac.New(sha256.New, []byte(b.secret))
+	mac.Write([]byte(sigStr))
+	sig := hex.EncodeToString(mac.Sum(nil))
+
+	req, err := http.NewRequestWithContext(ctx, "GET", b.BaseURL+endpoint+"?"+query, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("X-BTK-APIKEY", b.apiKey)
+	req.Header.Set("X-BTK-TIMESTAMP", fmt.Sprintf("%d", ts))
+	req.Header.Set("X-BTK-SIGN", sig)
+
+	resp, err := b.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("bitkub api failed, status: %d", resp.StatusCode)
+	}
+
+	// But according to docs, rate and amount might be strings,
+	// wait, let's parse using json.Unmarshal with interface{} or json.RawMessage if we want to be safe,
+	// or decode as string? The V3 docs examples show them as float or string randomly.
+	// We'll decode using string and parse float if needed. I will use struct with string type.
+	
+	body, _ := io.ReadAll(resp.Body)
+	var strData struct {
+		Error  int `json:"error"`
+		Result []struct {
+			ID     interface{} `json:"id"`
+			Side   string      `json:"side"`
+			Rate   interface{} `json:"rate"`
+			Amount interface{} `json:"amount"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(body, &strData); err != nil {
+		return nil, err
+	}
+	if strData.Error != 0 {
+		return nil, fmt.Errorf("bitkub error code: %d", strData.Error)
+	}
+
+	var res []Order
+	for _, o := range strData.Result {
+		var rate, amount float64
+		// Parse rate
+		switch v := o.Rate.(type) {
+		case float64:
+			rate = v
+		case string:
+			fmt.Sscanf(v, "%f", &rate)
+		}
+		// Parse amount
+		switch v := o.Amount.(type) {
+		case float64:
+			amount = v
+		case string:
+			fmt.Sscanf(v, "%f", &amount)
+		}
+
+		side := Buy
+		if strings.ToLower(o.Side) == "sell" {
+			side = Sell
+		}
+		res = append(res, Order{
+			ID:       fmt.Sprintf("%v", o.ID),
+			Symbol:   symbol,
+			Side:     side,
+			Price:    rate,
+			Quantity: amount,
+		})
+	}
+	return res, nil
 }
