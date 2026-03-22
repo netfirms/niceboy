@@ -47,14 +47,16 @@ sequenceDiagram
 Whether you are looking to run the bot or build upon it, follow the path that fits your role:
 
 ### 👤 The User Journey (Run the Bot)
-*Goal: Deploy `niceboy` and start trading in under 5 minutes.*
+
+_Goal: Deploy `niceboy` and start trading in under 5 minutes._
 
 1. **Quick Start**: [Install & Run](./docs/RUN.md)
 2. **Configuration**: [Setting up Keys & Symbols](./docs/RUN.md#configuration)
 3. **Management**: [Running Multiple Instances](./docs/RUN.md#multi-instance-support)
 
 ### 💻 The Developer Journey (Build the Bot)
-*Goal: Setup the local dev environment and contribute core logic.*
+
+_Goal: Setup the local dev environment and contribute core logic._
 
 1. **Onboarding**: [Setup & Hello World](./docs/ONBOARDING.md)
 2. **Architecture**: [Understand the 5 Pillars](./ARCHITECTURE.md)
@@ -63,19 +65,17 @@ Whether you are looking to run the bot or build upon it, follow the path that fi
 
 ---
 
-## 📥 Installation (User Path)
+## 📥 Installation & Quick Start
 
-The easiest way to get `niceboy` is to use one of the following methods:
+The quickest way to get started is to use the [**🚀 Installation & Run Guide (docs/RUN.md)**](./docs/RUN.md), which contains detailed instructions for every platform.
 
-### 🍏 macOS & Linux (Homebrew)
+### 🍏 macOS
 ```bash
-brew install netfirms/tap/niceboy
+brew install netfirms/niceboy/niceboy
 ```
 
-### 🪟 Windows & Others (Direct Binary)
-Download the latest pre-compiled binary for your architecture from the [**GitHub Releases**](https://github.com/netfirms/niceboy/releases) page.
-1. Download `niceboy_Windows_x86_64.zip` (for Windows).
-2. Extract and run `niceboy.exe`.
+### 🐧 Linux & 🪟 Windows
+Download the latest pre-compiled binary from the [**GitHub Releases**](https://github.com/netfirms/niceboy/releases) page and follow the [Run Guide](./docs/RUN.md).
 
 ---
 
@@ -100,7 +100,7 @@ Download the latest pre-compiled binary for your architecture from the [**GitHub
    ```bash
    go run cmd/niceboy/main.go
    ```
-   *Use `Tab` to switch between Dashboard and Audit Logs!*
+   _Use `Tab` to switch between Dashboard and Audit Logs!_
 
 ## 👯 Running Multiple Instances
 
@@ -133,4 +133,4 @@ Contributions are what make the open-source community such an amazing place to l
 
 ---
 
-*Built with ❤️ for the trading community.*
+_Built with ❤️ for the trading community._

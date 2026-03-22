@@ -1,93 +1,79 @@
 # 🚀 Installation & Run Guide
 
-> [!TIP]
-> **Developer?** If you intend to contribute code or run the test suite, please follow the [Developer Journey (Onboarding)](./ONBOARDING.md) instead.
+`niceboy` is distributed as a single, lightweight binary. Choose the installation method that fits your platform.
 
-## 📋 Prerequisites
+## 📥 Installation
 
-- **Go 1.24+**: Download and install from [go.dev](https://go.dev/dl/).
-- **Git**: To clone the repository.
-- **API Keys**: You'll need API keys from Binance or Bitkub for private trade operations (not required for public ticker polling).
+### 🍏 macOS (Recommended)
+The easiest way to install on macOS is via Homebrew:
+```bash
+brew install netfirms/niceboy/niceboy
+```
 
-## 🛠️ Installation
-
-1. **Clone the repository**:
+### 🐧 Linux
+1. Download the latest `niceboy_Linux_x86_64.tar.gz` from [GitHub Releases](https://github.com/netfirms/niceboy/releases).
+2. Extract and move to your path:
    ```bash
-   git clone https://github.com/netfirms/niceboy.git
-   cd niceboy
+   tar -xf niceboy_Linux_x86_64.tar.gz
+   chmod +x niceboy
+   sudo mv niceboy /usr/local/bin/
    ```
 
-2. **Install dependencies**:
-   ```bash
-   go mod download
+### 🪟 Windows
+1. Download `niceboy_Windows_x86_64.zip` from [GitHub Releases](https://github.com/netfirms/niceboy/releases).
+2. Extract the `.zip` file.
+3. Open **PowerShell** or **Command Prompt** in the folder and run:
+   ```powershell
+   .\niceboy.exe
    ```
 
 ## ⚙️ Configuration
 
-1. **Create your config file**:
-   Copy the example configuration (or let the bot generate it on first run):
-   ```bash
-   touch config.yaml
-   ```
+`niceboy` requires a `config.yaml` file to run. On the first launch, if no config is found, the bot will start an **Interactive Setup Wizard** to help you generate one.
 
-2. **Configure your exchanges**:
-   Edit `config.yaml` with your preferred exchange and API credentials:
-   ```yaml
-   active_exchange: binance
-   exchanges:
-     binance:
-       name: binance
-       key: "YOUR_BINANCE_API_KEY"
-       secret: "YOUR_BINANCE_SECRET_KEY"
-     bitkub:
-       name: bitkub
-       key: "YOUR_BITKUB_API_KEY"
-       secret: "YOUR_BITKUB_SECRET_KEY"
-       symbol: "THB_BTC"
-   
-   # Global Safety Switch
-   dry_run: true
-   ```
+### Manual Setup
+You can also manually create `config.yaml` using the provided templates:
+- [Binance Example](file:///Users/taweechai/Documents/pvt/niceboy/binance.example.yaml)
+- [Bitkub Example](file:///Users/taweechai/Documents/pvt/niceboy/bitkub.example.yaml)
+
+```bash
+# Example: Using the Binance template
+cp binance.example.yaml config.yaml
+```
 
 ## 🏃 Running the Bot
 
-### Development Mode
-To run the bot directly without a separate build step:
+### Basic Execution
 ```bash
-go run cmd/niceboy/main.go
+niceboy
 ```
 
-### Production Build
-To create a high-performance, single binary:
+### Multi-Instance Support
+Run multiple bots for different pairs or exchanges by specifying unique config and log files:
 ```bash
-# Build the binary
-go build -o niceboy cmd/niceboy/main.go
+# Instance 1: BTC on Binance
+niceboy -config binance_btc.yaml -log btc.log
 
-# Run the binary
-./niceboy
+# Instance 2: ETH on Bitkub
+niceboy -config bitkub_eth.yaml -log eth.log
 ```
 
-## 📊 Sample Output
-
-Upon a successful start, the terminal will render the structured **Bubble Tea / Lipgloss Dashboard**:
-
-```text
-  ⚡ niceboy ⚡ (v1.0) [DRY RUN]
-  BINANCE : BTCUSDT
-  [ DASHBOARD ] [ AUDIT LOGS ]
-  ╭───────────────────────────────────╮╭───────────────────────────────────╮
-  │ Status:  Connected                ││ Current Signal: BUY               │
-  │ Price:   $60420.50                ││ Logic: SMA Crossover (Fast > Slow)│
-  │ Trades:  1                        ││                                   │
-  ╰───────────────────────────────────╯╰───────────────────────────────────╯
-  ╭───────────────────────────────────╮╭───────────────────────────────────╮
-  │ PORTFOLIO (USDT)                  ││ OPEN ORDERS                       │
-  │ Available: 1,250.00               ││ No active orders.                 │
-  │ Locked:    500.00                 ││                                   │
-  ╰───────────────────────────────────╯╰───────────────────────────────────╯
-  [q:quit] [tab:switch view]
+### Docker Execution
+```bash
+docker run -it --rm \
+  -v $(pwd)/config.yaml:/app/config.yaml \
+  netfirms/niceboy:latest
 ```
+
+## 🎮 TUI Controls
+
+| Key | Action |
+|-----|--------|
+| `Tab` | Switch between Dashboard and Audit Logs |
+| `k` | **EMERGENCY KILL SWITCH** (Cancels all orders & flattens position) |
+| `b` | Manual Force Buy (Tactical) |
+| `s` | Manual Force Sell (Tactical) |
+| `q` | Quit Safely |
 
 ---
-
-*Need help? Open an issue on GitHub!*
+*Need help? Open an issue on [GitHub](https://github.com/netfirms/niceboy/issues).*

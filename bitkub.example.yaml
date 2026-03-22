@@ -1,0 +1,22 @@
+# Bitkub Configuration for niceboy
+active_exchange: bitkub
+dry_run: true # Set to false for real trading
+
+# Order Settings
+order_quantity: 0.0005 # Amount of BTC per trade
+slippage_pct: 0.05     # Max allowed slippage
+
+# Strategy: SMA Crossover (Fast > Slow)
+strategy: sma_crossover
+strategy_parameters:
+  short_period: 4
+  long_period: 9
+  stop_loss_pct: 1.0
+  take_profit_pct: 2.5
+
+exchanges:
+  bitkub:
+    name: bitkub
+    key: "YOUR_BITKUB_API_KEY"
+    secret: "YOUR_BITKUB_SECRET"
+    symbol: "THB_BTC"
