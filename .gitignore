@@ -8,6 +8,8 @@ niceboy
 
 # Configuration (contains secrets)
 config.yaml
+test_config.yaml
+*_config.yaml
 .env
 
 # IDE Metadata

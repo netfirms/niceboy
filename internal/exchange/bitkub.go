@@ -1,22 +1,35 @@
 package exchange
 
 import (
+	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
+
+	"github.com/gorilla/websocket"
 )
 
 type BitkubExchange struct {
-	BaseURL string
-	client  *http.Client
+	BaseURL   string
+	BaseWSURL string
+	client    *http.Client
+	apiKey    string
+	secret    string
 }
 
 func NewBitkubExchange(apiKey, secretKey string) *BitkubExchange {
 	return &BitkubExchange{
-		BaseURL: "https://api.bitkub.com",
-		client:  &http.Client{},
+		BaseURL:   "https://api.bitkub.com",
+		BaseWSURL: "wss://api.bitkub.com/websocket-api",
+		client:    &http.Client{Timeout: 10 * time.Second},
+		apiKey:    apiKey,
+		secret:    secretKey,
 	}
 }
 
@@ -61,22 +74,35 @@ func (b *BitkubExchange) GetPrice(ctx context.Context, symbol string) (float64, 
 }
 
 func (b *BitkubExchange) SubscribePrice(ctx context.Context, symbol string, ch chan<- MarketData) error {
-	// Bitkub WebSocket API requires a specific connection setup.
-	// For simplicity, we fallback to a rapid polling simulated stream for now.
+	streamName := strings.ToLower(fmt.Sprintf("market.ticker.%s", symbol))
+	wsURL := fmt.Sprintf("%s/%s", b.BaseWSURL, streamName)
+
+	c, _, err := websocket.DefaultDialer.DialContext(ctx, wsURL, nil)
+	if err != nil {
+		return fmt.Errorf("bitkub ws dial error: %v", err)
+	}
+
 	go func() {
-		ticker := time.NewTicker(2 * time.Second)
-		defer ticker.Stop()
+		defer c.Close()
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case <-ticker.C:
-				price, err := b.GetPrice(ctx, symbol)
-				if err == nil {
+			default:
+				_, message, err := c.ReadMessage()
+				if err != nil {
+					// In a real app we'd attempt to reconnect, but here we just return
+					return
+				}
+
+				var data struct {
+					Last float64 `json:"last"`
+				}
+				if err := json.Unmarshal(message, &data); err == nil && data.Last > 0 {
 					ch <- MarketData{
 						Symbol: symbol,
-						Price:  price,
-						Time:   time.Now().UnixNano() / 1e6,
+						Price:  data.Last,
+						Time:   time.Now().UnixNano() / 1e6, // current time ms
 					}
 				}
 			}
@@ -86,15 +112,69 @@ func (b *BitkubExchange) SubscribePrice(ctx context.Context, symbol string, ch c
 }
 
 func (b *BitkubExchange) ExecuteOrder(ctx context.Context, symbol string, side OrderSide, orderType OrderType, quantity float64, price float64) error {
-	// In a real implementation we would sign the payload and hit /api/market/place-bid or place-ask
-	// Since this is a local bot and Bitkub SDK support is limited, we simulate the execution.
 	if quantity <= 0 {
 		return fmt.Errorf("invalid quantity: %f", quantity)
 	}
-	
-	// Simulate network latency
-	time.Sleep(100 * time.Millisecond)
-	
-	// Return nil to indicate a successful "dry run" execution for local testing
+
+	endpoint := "/api/market/place-bid"
+	if side == Sell {
+		endpoint = "/api/market/place-ask"
+	}
+
+	url := b.BaseURL + endpoint
+
+	typ := "market"
+	if orderType == Limit {
+		typ = "limit"
+	}
+
+	payload := map[string]interface{}{
+		"sym":  symbol,
+		"amt":  quantity, // Bitkub 'amt' definition depends on buy/sell but we pass it generically.
+		"rat":  price,
+		"type": typ,
+		"ts":   time.Now().Unix(),
+	}
+
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+
+	mac := hmac.New(sha256.New, []byte(b.secret))
+	mac.Write(payloadBytes)
+	sig := hex.EncodeToString(mac.Sum(nil))
+
+	payload["sig"] = sig
+	finalPayload, _ := json.Marshal(payload)
+
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(finalPayload))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-BTK-APIKEY", b.apiKey)
+
+	resp, err := b.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("bitkub order execution failed, status: %d", resp.StatusCode)
+	}
+
+	// In a real application we would unmarshal the API response to check for logical error codes (e.g. error: 0 is success)
+	// Example: {"error": 0, "result": {...}}
+	var result map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err == nil {
+		if errCode, ok := result["error"].(float64); ok && errCode != 0 {
+			return fmt.Errorf("bitkub API error code: %.0f", errCode)
+		}
+	}
+
 	return nil
 }

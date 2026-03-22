@@ -4,10 +4,12 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/adshao/go-binance/v2"
+	"github.com/gorilla/websocket"
 )
 
 func TestBinanceExchange_GetPrice(t *testing.T) {
@@ -109,19 +111,40 @@ func TestBinanceExchange_ExecuteOrder(t *testing.T) {
 }
 
 func TestBitkubExchange_SubscribePrice(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upgrader := websocket.Upgrader{}
+		c, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer c.Close()
+		_ = c.WriteMessage(websocket.TextMessage, []byte(`{"last": 2000000.0}`))
+	}))
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+
 	b := &BitkubExchange{
-		BaseURL: "http://localhost",
-		client:  &http.Client{},
+		BaseWSURL: wsURL,
+		client:    &http.Client{},
 	}
 	
-	// Create context that cancels immediately so the goroutine exits quickly
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
 	
 	ch := make(chan MarketData, 1)
 	err := b.SubscribePrice(ctx, "THB_BTC", ch)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	
+	select {
+	case md := <-ch:
+		if md.Price != 2000000.0 {
+			t.Errorf("expected 2000000.0, got %f", md.Price)
+		}
+	case <-ctx.Done():
+		t.Error("timeout waiting for market data")
 	}
 }
 
@@ -154,9 +177,16 @@ func TestConstructorsAndGetName(t *testing.T) {
 }
 
 func TestBitkubExchange_ExecuteOrder(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"error": 0, "result": {}}`))
+	}))
+	defer server.Close()
+
 	b := &BitkubExchange{
-		BaseURL: "http://localhost",
+		BaseURL: server.URL,
 		client:  &http.Client{},
+		secret:  "dummy_secret",
 	}
 
 	err := b.ExecuteOrder(context.Background(), "THB_BTC", Buy, Market, 0.01, 0)
@@ -169,14 +199,17 @@ func TestBitkubExchange_ExecuteOrder(t *testing.T) {
 		t.Fatal("expected error for invalid quantity, got nil")
 	}
 
-	// Test coverage for the polling select loop by letting it run briefly
-	ctx2, cancel2 := context.WithCancel(context.Background())
-	ch2 := make(chan MarketData, 1)
-	err = b.SubscribePrice(ctx2, "INVALID", ch2)
-	time.Sleep(10 * time.Millisecond) // Let goroutine spin up
-	cancel2()                         // Trigger ctx.Done() in select block
-	if err != nil {
-		t.Logf("Bitkub err: %v", err)
+	// Trigger error path
+	errServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"error": 30, "result": {}}`))
+	}))
+	defer errServer.Close()
+
+	b.BaseURL = errServer.URL
+	err = b.ExecuteOrder(context.Background(), "THB_BTC", Buy, Market, 0.01, 0)
+	if err == nil {
+		t.Error("expected bitkub API error code, got nil")
 	}
 }
 
