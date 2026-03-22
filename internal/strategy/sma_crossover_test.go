@@ -130,3 +130,85 @@ func TestStrategy_Registry(t *testing.T) {
 		}
 	})
 }
+
+func TestSMACrossover_TrailingStop(t *testing.T) {
+	strat, _ := New("sma_crossover", map[string]interface{}{
+		"short_period":      2,
+		"long_period":       4,
+		"trailing_stop_pct": 2.0,
+	})
+
+	// 1. Fill data and trigger BUY at 100
+	strat.OnMarketData(exchange.MarketData{Price: 90})
+	strat.OnMarketData(exchange.MarketData{Price: 91})
+	strat.OnMarketData(exchange.MarketData{Price: 92})
+	sig := strat.OnMarketData(exchange.MarketData{Price: 100})
+	if sig.Type != Buy {
+		t.Fatalf("expected BUY at 100, got %v", sig.Type)
+	}
+
+	// 2. Price goes up to 200 (Trailing Stop should follow)
+	strat.OnMarketData(exchange.MarketData{Price: 150})
+	strat.OnMarketData(exchange.MarketData{Price: 200}) // New Peak
+
+	// 3. Price drops to 197 (1.5% drop - Should NOT trigger yet)
+	sig = strat.OnMarketData(exchange.MarketData{Price: 197})
+	if sig.Type == Sell {
+		t.Errorf("expected WAIT at 197 (1.5%% drop), got SELL. Reason: %s", sig.Reason)
+	}
+
+	// 4. Price drops to 195 (2.5% drop - Should TRIGGER Sell)
+	sig = strat.OnMarketData(exchange.MarketData{Price: 195})
+	if sig.Type != Sell {
+		t.Errorf("expected SELL at 195 (2.5%% drop), got %v", sig.Type)
+	}
+	if sig.Reason == "" || sig.Reason == "No change" {
+		t.Errorf("expected trailing stop reason, got %s", sig.Reason)
+	}
+}
+
+func TestSMACrossover_TrendFilter(t *testing.T) {
+	strat, _ := New("sma_crossover", map[string]interface{}{
+		"short_period": 2,
+		"long_period":  4,
+		"trend_period": 10,
+	})
+
+	// 1. Create a "Bearish" Trend (Price < EMA)
+	// Fill 10 data points starting high and going low
+	for i := 200; i > 190; i-- {
+		strat.OnMarketData(exchange.MarketData{Price: float64(i)})
+	}
+
+	// 2. Trigger a "Bullish Crossover" at a low price (e.g. 100)
+	// But Trend EMA will be around ~195
+	strat.OnMarketData(exchange.MarketData{Price: 98})
+	strat.OnMarketData(exchange.MarketData{Price: 99})
+	
+	sig := strat.OnMarketData(exchange.MarketData{Price: 105}) // short (102) > long (100)
+	
+	// Crossover happens, but Price (105) < Trend EMA (~190+)
+	if sig.Type == Buy {
+		t.Errorf("expected signal to be SUPPRESSED by trend filter, but got BUY. Reason: %s", sig.Reason)
+	}
+	
+	if sig.Type != Wait {
+		t.Errorf("expected WAIT (suppressed), got %v", sig.Type)
+	}
+
+	// 3. Move Price ABOVE Trend EMA to verify it works when trend is bullish
+	for i := 0; i < 20; i++ {
+		strat.OnMarketData(exchange.MarketData{Price: 300})
+	}
+	// Force a Sell signal first to reset lastSignal
+	strat.OnMarketData(exchange.MarketData{Price: 50})
+	strat.OnMarketData(exchange.MarketData{Price: 40})
+	
+	// Now Crossover UP while price (310) > Trend EMA (~300)
+	strat.OnMarketData(exchange.MarketData{Price: 305})
+	sig = strat.OnMarketData(exchange.MarketData{Price: 310})
+	
+	if sig.Type != Buy {
+		t.Errorf("expected BUY when above trend, got %v. Reason: %s", sig.Type, sig.Reason)
+	}
+}

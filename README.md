@@ -57,10 +57,27 @@ Whether you are looking to run the bot or build upon it, follow the path that fi
 1. **Onboarding**: [Setup & Hello World](./docs/ONBOARDING.md)
 2. **Architecture**: [Understand the 5 Pillars](./ARCHITECTURE.md)
 3. **Execution**: [Testing & Coverage Suite](./docs/TESTING.md)
+4. **Build & Release**: [GoReleaser Workflow](.goreleaser.yaml)
 
 ---
 
-## ⚡ Quick Start (User Path)
+## 📥 Installation (User Path)
+
+The easiest way to get `niceboy` is to use one of the following methods:
+
+### 🍏 macOS & Linux (Homebrew)
+```bash
+brew install netfirms/tap/niceboy
+```
+
+### 🪟 Windows & Others (Direct Binary)
+Download the latest pre-compiled binary for your architecture from the [**GitHub Releases**](https://github.com/netfirms/niceboy/releases) page.
+1. Download `niceboy_Windows_x86_64.zip` (for Windows).
+2. Extract and run `niceboy.exe`.
+
+---
+
+## ⚡ Quick Start (Developer Path)
 
 1. **Install Go**: Ensure Go 1.24+ is installed.
 2. **Cloning**:

@@ -1,4 +1,4 @@
-.PHONY: all build run test coverage lint tidy clean
+.PHONY: all build run test coverage lint tidy clean release-snapshot docker-build docker-run
 
 BINARY_NAME=niceboy
 
@@ -40,3 +40,17 @@ clean:
 	rm -f $(BINARY_NAME)
 	rm -f *.log
 	rm -f coverage.out
+	rm -rf dist/
+
+release-snapshot:
+	@if command -v goreleaser > /dev/null; then \
+		goreleaser release --snapshot --clean; \
+	else \
+		echo "goreleaser not found. Please install it first."; \
+	fi
+
+docker-build:
+	docker build -t $(BINARY_NAME):latest .
+
+docker-run:
+	docker run -it --rm -v ./config.yaml:/app/config.yaml $(BINARY_NAME):latest

@@ -1,0 +1,83 @@
+# .goreleaser.yaml
+# Documentation at https://goreleaser.com
+project_name: niceboy
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+      - arm
+    goarm:
+      - 7
+    main: ./cmd/niceboy/main.go
+    binary: niceboy
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
+
+archives:
+  - format: tar.gz
+    # this name template makes the OS and Arch compatible with what personal-repo expects.
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    # use zip for windows archives
+    format_overrides:
+      - goos: windows
+        format: zip
+
+checksum:
+  name_template: 'checksums.txt'
+
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+
+# Homebrew Tap configuration
+brews:
+  - name: niceboy
+    tap:
+      owner: netfirms
+      name: homebrew-niceboy
+    homepage: "https://github.com/netfirms/niceboy"
+    description: "Institutional-grade crypto trading bot with TUI."
+    test: |
+      system "#{bin}/niceboy --version"
+
+# Docker build configuration
+dockers:
+  - image_templates:
+      - "netfirms/niceboy:latest"
+      - "netfirms/niceboy:{{ .Version }}"
+      - "netfirms/niceboy:{{ .Major }}"
+    dockerfile: Dockerfile
+    build_flag_templates:
+      - "--label=org.opencontainers.image.title={{ .ProjectName }}"
+      - "--label=org.opencontainers.image.version={{ .Version }}"
+    extra_files:
+      - config.example.yaml
+
+# Signing configuration
+signs:
+  - artifacts: checksum
+    args: ["--batch", "-u", "{{ .Env.GPG_FINGERPRINT }}", "--detach-sign", "${artifact}"]

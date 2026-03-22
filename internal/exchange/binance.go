@@ -165,3 +165,37 @@ func (b *BinanceExchange) ExecuteOrder(ctx context.Context, symbol string, side 
 	_, err := srv.Do(ctx)
 	return err
 }
+
+func (b *BinanceExchange) GetSymbolInfo(ctx context.Context, symbol string) (SymbolInfo, error) {
+	resp, err := b.client.NewExchangeInfoService().Symbols(symbol).Do(ctx)
+	if err != nil {
+		return SymbolInfo{}, err
+	}
+	if len(resp.Symbols) == 0 {
+		return SymbolInfo{}, fmt.Errorf("symbol not found: %s", symbol)
+	}
+	s := resp.Symbols[0]
+
+	info := SymbolInfo{
+		Symbol:         s.Symbol,
+		BaseAsset:      s.BaseAsset,
+		QuoteAsset:     s.QuoteAsset,
+		BasePrecision:  s.BaseAssetPrecision,
+		QuotePrecision: s.QuotePrecision,
+	}
+
+	for _, f := range s.Filters {
+		if f["filterType"] == "PRICE_FILTER" {
+			info.TickSize, _ = strconv.ParseFloat(f["tickSize"].(string), 64)
+		}
+		if f["filterType"] == "LOT_SIZE" {
+			info.MinQty, _ = strconv.ParseFloat(f["minQty"].(string), 64)
+			info.StepSize, _ = strconv.ParseFloat(f["stepSize"].(string), 64)
+		}
+		if f["filterType"] == "NOTIONAL" {
+			info.MinNotional, _ = strconv.ParseFloat(f["minNotional"].(string), 64)
+		}
+	}
+
+	return info, nil
+}

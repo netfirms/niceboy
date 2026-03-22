@@ -36,6 +36,19 @@ const (
 	Limit  OrderType = "LIMIT"
 )
 
+// SymbolInfo represents exchange-specific constraints for a trading pair
+type SymbolInfo struct {
+	Symbol         string
+	BaseAsset      string
+	QuoteAsset     string
+	BasePrecision  int     // Decimal places for quantity
+	QuotePrecision int     // Decimal places for price
+	MinQty         float64 // Minimum quantity per order
+	MinNotional    float64 // Minimum total order value (Qty * Price)
+	StepSize       float64 // Quantity increment (e.g., 0.0001)
+	TickSize       float64 // Price increment (e.g., 0.01)
+}
+
 // Exchange defines the interface for interacting with a cryptocurrency exchange
 type Exchange interface {
 	GetName() string
@@ -48,4 +61,6 @@ type Exchange interface {
 	GetBalances(ctx context.Context) (map[string]float64, error)
 	// GetOpenOrders retrieves unfilled orders for a specific symbol
 	GetOpenOrders(ctx context.Context, symbol string) ([]Order, error)
+	// GetSymbolInfo retrieves metadata like precision and minimums
+	GetSymbolInfo(ctx context.Context, symbol string) (SymbolInfo, error)
 }

@@ -34,6 +34,11 @@
 - **Resilient Execution**: Self-healing WebSocket connections with exponential backoff and panic recovery ensure 24/7 uptime.
 - **Execution Precision**: Stateful position tracking prevents redundant orders and ensures precise exit timing.
 
+### 6. 🔐 Persistent Vault (Data Integrity)
+- **High-Performance SQLite**: Utilizes SQLite with WAL mode for robust, local storage of trade history and bot state.
+- **State Recovery**: Ensures seamless recovery of bot operations after restarts or unexpected interruptions.
+- **Audit Trail**: Provides a persistent, queryable record of all trading activities and system events.
+
 ## 📡 Data Flow
 
 ```mermaid
