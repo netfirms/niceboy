@@ -260,11 +260,15 @@ func main() {
 				balances, err := exch.GetBalances(fetchCtx)
 				if err == nil {
 					p.Send(ui.BalanceUpdateMsg(balances))
+				} else {
+					p.Send(ui.AuditMsg(fmt.Sprintf("WARN: Balance update failed: %v", err)))
 				}
 
 				orders, err := exch.GetOpenOrders(fetchCtx, symbol)
 				if err == nil {
 					p.Send(ui.OpenOrdersUpdateMsg(orders))
+				} else {
+					p.Send(ui.AuditMsg(fmt.Sprintf("WARN: Open orders update failed: %v", err)))
 				}
 
 				// 2. Order Book (Tactical)
@@ -283,8 +287,16 @@ func main() {
 					btcSym = "THB_BTC"
 					ethSym = "THB_ETH"
 				}
-				if btcP, err := exch.GetPrice(fetchCtx, btcSym); err == nil { pulse["BTC"] = btcP }
-				if ethP, err := exch.GetPrice(fetchCtx, ethSym); err == nil { pulse["ETH"] = ethP }
+				if btcP, err := exch.GetPrice(fetchCtx, btcSym); err == nil { 
+					pulse["BTC"] = btcP 
+				} else {
+					p.Send(ui.AuditMsg(fmt.Sprintf("WARN: BTC pulse failed: %v", err)))
+				}
+				if ethP, err := exch.GetPrice(fetchCtx, ethSym); err == nil { 
+					pulse["ETH"] = ethP 
+				} else {
+					p.Send(ui.AuditMsg(fmt.Sprintf("WARN: ETH pulse failed: %v", err)))
+				}
 				p.Send(ui.MarketPulseMsg(pulse))
 
 				// 4. Bot Health (Latency)

@@ -86,22 +86,33 @@ func (b *BitkubExchange) GetPrice(ctx context.Context, symbol string) (float64, 
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("bitkub api failed, status: %d", resp.StatusCode)
+		return 0, fmt.Errorf("bitkub ticker failed, status: %d", resp.StatusCode)
 	}
 
-	// Bitkub V3 Ticker returns an array: [{"symbol":"BTC_THB", "last": ...}]
-	var data []struct {
-		Last float64 `json:"last"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
 		return 0, err
 	}
 
-	if len(data) == 0 {
-		return 0, fmt.Errorf("symbol not found: %s", normSym)
+	// Bitkub V3 Ticker can return directly or wrapped in an envelope
+	var envelope struct {
+		Error  int `json:"error"`
+		Result []struct {
+			Last float64 `json:"last"`
+		} `json:"result"`
+	}
+	
+	var directData []struct {
+		Last float64 `json:"last"`
 	}
 
-	return data[0].Last, nil
+	if err := json.Unmarshal(body, &envelope); err == nil && len(envelope.Result) > 0 {
+		return envelope.Result[0].Last, nil
+	} else if err := json.Unmarshal(body, &directData); err == nil && len(directData) > 0 {
+		return directData[0].Last, nil
+	}
+
+	return 0, fmt.Errorf("failed to parse Bitkub ticker response: %s", string(body))
 }
 
 func (b *BitkubExchange) SubscribePrice(ctx context.Context, symbol string, ch chan<- MarketData) error {
