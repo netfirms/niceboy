@@ -78,32 +78,46 @@ func (b *BitkubExchange) SubscribePrice(ctx context.Context, symbol string, ch c
 	streamName := strings.ToLower(fmt.Sprintf("market.ticker.%s", symbol))
 	wsURL := fmt.Sprintf("%s/%s", b.BaseWSURL, streamName)
 
-	c, _, err := websocket.DefaultDialer.DialContext(ctx, wsURL, nil)
-	if err != nil {
-		return fmt.Errorf("bitkub ws dial error: %v", err)
-	}
-
 	go func() {
-		defer c.Close()
+		backoff := time.Second
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			default:
-				_, message, err := c.ReadMessage()
+				c, _, err := websocket.DefaultDialer.DialContext(ctx, wsURL, nil)
 				if err != nil {
-					// In a real app we'd attempt to reconnect, but here we just return
-					return
+					time.Sleep(backoff)
+					if backoff < 30*time.Second {
+						backoff *= 2
+					}
+					continue
 				}
 
-				var data struct {
-					Last float64 `json:"last"`
-				}
-				if err := json.Unmarshal(message, &data); err == nil && data.Last > 0 {
-					ch <- MarketData{
-						Symbol: symbol,
-						Price:  data.Last,
-						Time:   time.Now().UnixNano() / 1e6, // current time ms
+				// Reset backoff on successful connection
+				backoff = time.Second
+
+				for {
+					_, message, err := c.ReadMessage()
+					if err != nil {
+						c.Close()
+						break // Trigger reconnect
+					}
+
+					var data struct {
+						Last float64 `json:"last"`
+					}
+					if err := json.Unmarshal(message, &data); err == nil && data.Last > 0 {
+						select {
+						case ch <- MarketData{
+							Symbol: symbol,
+							Price:  data.Last,
+							Time:   time.Now().UnixNano() / 1e6,
+						}:
+						case <-ctx.Done():
+							c.Close()
+							return
+						}
 					}
 				}
 			}

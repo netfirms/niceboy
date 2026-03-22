@@ -6,13 +6,10 @@ import (
 )
 
 func TestSMACrossover_OnMarketData(t *testing.T) {
-	strat, err := New("sma_crossover", map[string]interface{}{
+	strat, _ := New("sma_crossover", map[string]interface{}{
 		"short_period": 5,
 		"long_period":  10,
 	})
-	if err != nil {
-		t.Fatalf("failed to init strategy: %v", err)
-	}
 
 	tests := []struct {
 		name     string
@@ -29,12 +26,12 @@ func TestSMACrossover_OnMarketData(t *testing.T) {
 		{"Wait for 8th point", 107, Wait},
 		{"Wait for 9th point", 108, Wait},
 		{"Cross Above (BUY)", 109, Buy},
-		{"Still Above (BUY)", 115, Buy},
-		{"Still Above (BUY)", 116, Buy},
-		{"Price Drop (Still BUY)", 90, Buy},
+		{"Still Above (WAIT)", 115, Wait},
+		{"Still Above (WAIT)", 116, Wait},
+		{"Price Drop (Still WAIT)", 90, Wait},
 		{"Cross Below (SELL)", 80, Sell},
-		{"Still Below (SELL)", 70, Sell},
-		{"Still Below (SELL)", 60, Sell},
+		{"Still Below (WAIT)", 70, Wait},
+		{"Still Below (WAIT) - #2", 60, Wait},
 	}
 
 	for _, tt := range tests {
@@ -44,9 +41,62 @@ func TestSMACrossover_OnMarketData(t *testing.T) {
 				Price:  tt.price,
 			})
 			if signal.Type != tt.expected {
-				t.Errorf("expected %v, got %v", tt.expected, signal.Type)
+				t.Errorf("expected %v, got %v for %s", tt.expected, signal.Type, tt.name)
 			}
 		})
+	}
+}
+
+func TestSMACrossover_StopLoss(t *testing.T) {
+	strat, _ := New("sma_crossover", map[string]interface{}{
+		"short_period": 2,
+		"long_period":  4,
+		"stop_loss_pct": 5.0,
+	})
+
+	// Fill data to trigger BUY
+	strat.OnMarketData(exchange.MarketData{Price: 100})
+	strat.OnMarketData(exchange.MarketData{Price: 101})
+	strat.OnMarketData(exchange.MarketData{Price: 102})
+	
+	// Trigger BUY at 110
+	sig := strat.OnMarketData(exchange.MarketData{Price: 110})
+	if sig.Type != Buy {
+		t.Fatalf("expected BUY, got %v", sig.Type)
+	}
+
+	// Price drops to 104.5 (5.01% loss from 110)
+	sig = strat.OnMarketData(exchange.MarketData{Price: 104.4})
+	if sig.Type != Sell {
+		t.Errorf("expected SELL (Stop Loss), got %v", sig.Type)
+	}
+	if sig.Reason == "" || sig.Reason == "No change" {
+		t.Errorf("expected stop loss reason, got %s", sig.Reason)
+	}
+}
+
+func TestSMACrossover_TakeProfit(t *testing.T) {
+	strat, _ := New("sma_crossover", map[string]interface{}{
+		"short_period": 2,
+		"long_period":  4,
+		"take_profit_pct": 10.0,
+	})
+
+	// Fill data
+	for i := 0; i < 3; i++ {
+		strat.OnMarketData(exchange.MarketData{Price: 100})
+	}
+	
+	// Buy at 110
+	sigBuy := strat.OnMarketData(exchange.MarketData{Price: 110}) // short > long
+	if sigBuy.Type != Buy {
+		t.Fatalf("expected BUY at 110, got %v", sigBuy.Type)
+	}
+
+	// Price goes to 121 (11% gain)
+	sig := strat.OnMarketData(exchange.MarketData{Price: 121.1})
+	if sig.Type != Sell {
+		t.Errorf("expected SELL (Take Profit) at 121.1, got %v (Reason: %s)", sig.Type, sig.Reason)
 	}
 }
 

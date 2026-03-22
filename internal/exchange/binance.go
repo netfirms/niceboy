@@ -53,19 +53,42 @@ func (b *BinanceExchange) SubscribePrice(ctx context.Context, symbol string, ch 
 		}
 	}
 	
-	errHandler := func(err error) {
-		// In a production app, we would log this and attempt to reconnect.
-	}
-
-	doneC, stopC, err := binance.WsBookTickerServe(symbol, wsHandler, errHandler)
-	if err != nil {
-		return err
-	}
-
 	go func() {
-		<-ctx.Done()
-		stopC <- struct{}{}
-		<-doneC
+		backoff := time.Second
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				errHandler := func(err error) {
+					// Connection lost
+				}
+
+				doneC, stopC, err := binance.WsBookTickerServe(symbol, wsHandler, errHandler)
+				if err != nil {
+					time.Sleep(backoff)
+					if backoff < 30*time.Second {
+						backoff *= 2
+					}
+					continue
+				}
+
+				backoff = time.Second // Reset on success
+
+				select {
+				case <-ctx.Done():
+					stopC <- struct{}{}
+					<-doneC
+					return
+				case <-doneC:
+					// Stream closed externally or errored, loop to reconnect
+					time.Sleep(backoff)
+					if backoff < 30*time.Second {
+						backoff *= 2
+					}
+				}
+			}
+		}
 	}()
 
 	return nil

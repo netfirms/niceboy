@@ -2,8 +2,14 @@
 # Copy this file to config.yaml and fill in your details.
 
 # The exchange the bot will use on startup
-active_exchange: binance 
+active_exchange: binance
 dry_run: true
+
+strategy_parameters:
+  short_period: 5
+  long_period: 10
+  stop_loss_pct: 2.0
+  take_profit_pct: 5.0
 
 exchanges:
   binance:
