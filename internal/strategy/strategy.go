@@ -24,6 +24,12 @@ type Signal struct {
 	Price  float64
 	Profit float64 // P&L amount for SELL signals
 	Reason string
+
+	// Cockpit Metadata
+	EntryPrice   float64
+	StopLoss     float64
+	TakeProfit   float64
+	TrailingStop float64
 }
 
 // Strategy is the interface that all trading algorithms must implement

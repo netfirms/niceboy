@@ -199,3 +199,22 @@ func (b *BinanceExchange) GetSymbolInfo(ctx context.Context, symbol string) (Sym
 
 	return info, nil
 }
+func (b *BinanceExchange) GetOrderBook(ctx context.Context, symbol string, limit int) (OrderBook, error) {
+	resp, err := b.client.NewDepthService().Symbol(symbol).Limit(limit).Do(ctx)
+	if err != nil {
+		return OrderBook{}, err
+	}
+	
+	book := OrderBook{Symbol: symbol}
+	for _, b := range resp.Bids {
+		p, _ := strconv.ParseFloat(b.Price, 64)
+		q, _ := strconv.ParseFloat(b.Quantity, 64)
+		book.Bids = append(book.Bids, DepthEntry{Price: p, Quantity: q})
+	}
+	for _, a := range resp.Asks {
+		p, _ := strconv.ParseFloat(a.Price, 64)
+		q, _ := strconv.ParseFloat(a.Quantity, 64)
+		book.Asks = append(book.Asks, DepthEntry{Price: p, Quantity: q})
+	}
+	return book, nil
+}

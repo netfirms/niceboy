@@ -11,6 +11,19 @@ type MarketData struct {
 	Time   int64 // Unix timestamp in milliseconds
 }
 
+// DepthEntry represents a single price level in the order book
+type DepthEntry struct {
+	Price    float64
+	Quantity float64
+}
+
+// OrderBook represents the current market depth
+type OrderBook struct {
+	Symbol string
+	Bids   []DepthEntry
+	Asks   []DepthEntry
+}
+
 // OrderSide represents BUY or SELL
 type OrderSide string
 
@@ -63,4 +76,6 @@ type Exchange interface {
 	GetOpenOrders(ctx context.Context, symbol string) ([]Order, error)
 	// GetSymbolInfo retrieves metadata like precision and minimums
 	GetSymbolInfo(ctx context.Context, symbol string) (SymbolInfo, error)
+	// GetOrderBook retrieves the top bids and asks
+	GetOrderBook(ctx context.Context, symbol string, limit int) (OrderBook, error)
 }

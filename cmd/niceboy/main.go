@@ -235,7 +235,8 @@ func main() {
 			defer ticker.Stop()
 			
 			pollFunc := func() {
-				fetchCtx, fetchCancel := context.WithTimeout(cmdCtx, 8*time.Second) // Increased from 3s
+				startTime := time.Now()
+				fetchCtx, fetchCancel := context.WithTimeout(cmdCtx, 8*time.Second) 
 				defer fetchCancel()
 
 				if exchCfg.Key == "" || exchCfg.Secret == "" {
@@ -243,24 +244,40 @@ func main() {
 					return
 				}
 
+				// 1. Balances & Orders
 				balances, err := exch.GetBalances(fetchCtx)
-				if err != nil {
-					p.Send(ui.AuditMsg(fmt.Sprintf("ERR: Balance fetch failed: %v", err)))
-				} else {
+				if err == nil {
 					p.Send(ui.BalanceUpdateMsg(balances))
 				}
 
 				orders, err := exch.GetOpenOrders(fetchCtx, symbol)
-				if err != nil {
-					p.Send(ui.AuditMsg(fmt.Sprintf("ERR: Orders fetch failed: %v", err)))
-				} else {
+				if err == nil {
 					p.Send(ui.OpenOrdersUpdateMsg(orders))
 				}
 
+				// 2. Order Book (Tactical)
+				book, err := exch.GetOrderBook(fetchCtx, symbol, 5)
+				if err == nil {
+					p.Send(ui.OrderBookUpdateMsg(book))
+				}
+
+				// 3. Market Pulse (Context - Try to get BTC/ETH)
+				pulse := make(map[string]float64)
+				btcSym := "BTCUSDT"
+				ethSym := "ETHUSDT"
+				if cfg.ActiveExchange == "bitkub" {
+					btcSym = "THB_BTC"
+					ethSym = "THB_ETH"
+				}
+				if btcP, err := exch.GetPrice(fetchCtx, btcSym); err == nil { pulse["BTC"] = btcP }
+				if ethP, err := exch.GetPrice(fetchCtx, ethSym); err == nil { pulse["ETH"] = ethP }
+				p.Send(ui.MarketPulseMsg(pulse))
+
+				// 4. Bot Health (Latency)
+				p.Send(ui.LatencyUpdateMsg(time.Since(startTime)))
+
 				stats, err := dbStore.GetStats()
-				if err != nil {
-					log.Error().Err(err).Msg("Failed to fetch stats")
-				} else {
+				if err == nil {
 					p.Send(ui.StatsUpdateMsg(stats))
 				}
 			}
