@@ -594,8 +594,10 @@ func (m Model) renderCockpit(headerSection string) string {
 	if len(m.Trades) < limit { limit = len(m.Trades) }
 	for i := 0; i < limit; i++ {
 		t := m.Trades[i]
-		side := "B"
-		if strings.ToUpper(t.Side) == "SELL" { side = "S" }
+		side := buyStyle.Render("▲ B")
+		if strings.ToUpper(t.Side) == "SELL" {
+			side = sellStyle.Render("▼ S")
+		}
 		histLines = append(histLines, fmt.Sprintf(" • %s: %s %.2f", t.Timestamp.Format("15:04"), side, t.Price))
 	}
 	if len(m.Trades) == 0 { histLines = append(histLines, " • No trades yet") }
