@@ -76,9 +76,17 @@ func main() {
 		cfg.SaveConfig(*configPath)
 	}
 
-	dbStore, err := database.NewSQLiteStore(cfg.DatabasePath)
+	// Ensure specialized data directory per config
+	dataDir := fmt.Sprintf("data/%s", configName)
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		log.Warn().Err(err).Msg("Failed to create data directory, using root")
+		dataDir = "."
+	}
+	dbPath := filepath.Join(dataDir, "niceboy.db")
+
+	dbStore, err := database.NewSQLiteStore(dbPath)
 	if err != nil {
-		log.Fatal().Err(err).Str("path", cfg.DatabasePath).Msg("Failed to initialize database")
+		log.Fatal().Err(err).Str("path", dbPath).Msg("Failed to initialize database")
 	}
 	defer dbStore.Close()
 
