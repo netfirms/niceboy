@@ -150,6 +150,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case PriceMsg:
 		m.Price = msg.Price
 		m.LastPoll = time.Unix(msg.Time/1000, 0)
+		m.Status = "Connected"
 		// Update price history (last 5000 points)
 		m.PriceHistory = append(m.PriceHistory, m.Price)
 		if len(m.PriceHistory) > 5000 {
