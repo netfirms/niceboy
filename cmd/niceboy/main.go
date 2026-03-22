@@ -19,6 +19,8 @@ import (
 	"github.com/charmbracelet/bubbletea"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"path/filepath"
+	"strings"
 	"sync"
 )
 
@@ -30,7 +32,6 @@ var (
 
 func main() {
 	configPath := flag.String("config", "config.yaml", "Path to configuration file")
-	logPath := flag.String("log", "niceboy.log", "Path to log file")
 	showVersion := flag.Bool("version", false, "Show version information")
 	flag.Parse()
 
@@ -39,9 +40,19 @@ func main() {
 		return
 	}
 
-	logFile, err := os.OpenFile(*logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	configName := filepath.Base(*configPath)
+	configName = strings.TrimSuffix(configName, filepath.Ext(configName))
+
+	// Ensure specialized log directory per config
+	logDir := fmt.Sprintf("logs/%s", configName)
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		fmt.Printf("Warning: Failed to create log directory: %v\n", err)
+	}
+	
+	finalLogPath := filepath.Join(logDir, "niceboy.log")
+	logFile, err := os.OpenFile(finalLogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		fmt.Printf("Warning: Failed to open log file %s: %v\n", *logPath, err)
+		fmt.Printf("Warning: Failed to open log file %s: %v\n", finalLogPath, err)
 	} else {
 		defer logFile.Close()
 	}
@@ -114,7 +125,7 @@ func main() {
 		}
 
 		engineCh := make(chan interface{}, 20)
-		m := ui.NewModel(cfg.ActiveExchange, symbol, cfg.DryRun, dbStore, strategyName, cfg.StrategyParameters, cfg.OrderQuantity, version, commit, engineCh)
+		m := ui.NewModel(cfg.ActiveExchange, symbol, cfg.DryRun, dbStore, strategyName, cfg.StrategyParameters, cfg.OrderQuantity, version, commit, configName, engineCh)
 		p := tea.NewProgram(m, tea.WithAltScreen())
 
 		var wg sync.WaitGroup

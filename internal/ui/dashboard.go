@@ -105,6 +105,7 @@ type Model struct {
 	MarketPulse map[string]float64 // BTC, ETH prices
 	AppVersion  string
 	AppCommit   string
+	ConfigName  string
 
 	// Engine Bridge
 	engineCh chan<- interface{}
@@ -122,7 +123,7 @@ type ManualTradeMsg struct {
 // KillSwitchMsg triggers an emergency global halt
 type KillSwitchMsg struct{}
 
-func NewModel(exchangeName, symbol string, dryRun bool, db database.Store, strategyName string, strategyParams map[string]interface{}, orderQuantity float64, appVersion, appCommit string, engineCh chan<- interface{}) Model {
+func NewModel(exchangeName, symbol string, dryRun bool, db database.Store, strategyName string, strategyParams map[string]interface{}, orderQuantity float64, appVersion, appCommit string, configName string, engineCh chan<- interface{}) Model {
 	return Model{
 		ExchangeName:   exchangeName,
 		Symbol:         symbol,
@@ -138,6 +139,8 @@ func NewModel(exchangeName, symbol string, dryRun bool, db database.Store, strat
 		MarketPulse:    make(map[string]float64),
 		AppVersion:     appVersion,
 		AppCommit:      appCommit,
+		ConfigName:     configName,
+		engineCh:       engineCh,
 	}
 }
 
@@ -348,7 +351,13 @@ func (m Model) exportCmd() tea.Cmd {
 		if m.DB == nil {
 			return AuditMsg("[ERROR] Cannot export: No database")
 		}
-		filename := fmt.Sprintf("trades_export_%s.csv", time.Now().Format("20060102_150405"))
+		
+		dir := fmt.Sprintf("exports/%s", m.ConfigName)
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return AuditMsg(fmt.Sprintf("[ERROR] Failed to create export directory: %v", err))
+		}
+
+		filename := fmt.Sprintf("%s/trades_export_%s.csv", dir, time.Now().Format("20060102_150405"))
 		if err := m.DB.ExportTradesToCSV(filename); err != nil {
 			return AuditMsg(fmt.Sprintf("[ERROR] CSV Export failed: %v", err))
 		}
@@ -358,7 +367,12 @@ func (m Model) exportCmd() tea.Cmd {
 
 func (m Model) exportAuditCmd() tea.Cmd {
 	return func() tea.Msg {
-		filename := fmt.Sprintf("audit_log_%s.txt", time.Now().Format("20060102_150405"))
+		dir := fmt.Sprintf("exports/%s", m.ConfigName)
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return AuditMsg(fmt.Sprintf("[ERROR] Failed to create export directory: %v", err))
+		}
+
+		filename := fmt.Sprintf("%s/audit_log_%s.txt", dir, time.Now().Format("20060102_150405"))
 		content := strings.Join(m.AuditLog, "\n")
 		if err := os.WriteFile(filename, []byte(content), 0644); err != nil {
 			return AuditMsg(fmt.Sprintf("[ERROR] Audit Export failed: %v", err))
