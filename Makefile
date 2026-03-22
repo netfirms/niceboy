@@ -29,6 +29,13 @@ lint:
 tidy:
 	go mod tidy
 
+install-hooks:
+	@echo "Installing git hooks..."
+	@mkdir -p .git/hooks
+	@ln -sf ../../scripts/git-hooks/pre-commit.sh .git/hooks/pre-commit
+	@chmod +x .git/hooks/pre-commit
+	@echo "Hooks installed successfully!"
+
 clean:
 	rm -f $(BINARY_NAME)
 	rm -f *.log
