@@ -43,6 +43,10 @@
        name: bitkub
        key: "YOUR_BITKUB_API_KEY"
        secret: "YOUR_BITKUB_SECRET_KEY"
+       symbol: "THB_BTC"
+   
+   # Global Safety Switch
+   dry_run: true
    ```
 
 ## 🏃 Running the Bot
@@ -68,20 +72,20 @@ go build -o niceboy cmd/niceboy/main.go
 Upon a successful start, the terminal will render the structured **Bubble Tea / Lipgloss Dashboard**:
 
 ```text
- ⚡ niceboy ⚡
- BINANCE : BTCUSDT
- ---------------------------
- Status:  Connected
- Price:   $60400.00
- Trades:  1
- Updated: 15:04:05.123
- ---------------------------
- Current Signal: BUY
- Strategy Logic: Price crossed above SMA (60400.0 > 60300.0)
-
- [15:04:05] EXEC: Placing BUY order for 0.0100 at Market
- [15:04:05] SUCCESS: BUY order executed
- [q:quit]
+  ⚡ niceboy ⚡ (v1.0) [DRY RUN]
+  BINANCE : BTCUSDT
+  [ DASHBOARD ] [ AUDIT LOGS ]
+  ╭───────────────────────────────────╮╭───────────────────────────────────╮
+  │ Status:  Connected                ││ Current Signal: BUY               │
+  │ Price:   $60420.50                ││ Logic: SMA Crossover (Fast > Slow)│
+  │ Trades:  1                        ││                                   │
+  ╰───────────────────────────────────╯╰───────────────────────────────────╯
+  ╭───────────────────────────────────╮╭───────────────────────────────────╮
+  │ PORTFOLIO (USDT)                  ││ OPEN ORDERS                       │
+  │ Available: 1,250.00               ││ No active orders.                 │
+  │ Locked:    500.00                 ││                                   │
+  ╰───────────────────────────────────╯╰───────────────────────────────────╯
+  [q:quit] [tab:switch view]
 ```
 
 ---

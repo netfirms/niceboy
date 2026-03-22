@@ -13,7 +13,7 @@
 
 ### 2. ⚡ Speed (Latency)
 - **Go 1.24+ Runtime**: Leverages the latest runtime improvements for garbage collection and scheduler efficiency.
-- **WebSocket Streaming**: (Implementation in progress) Direct TCP/TLS streams for sub-millisecond market updates.
+- **WebSocket Streaming**: **Direct TCP/TLS streams** for sub-millisecond market updates (Implemented for Binance & Bitkub).
 - **Efficient Signaling**: Strategy logic executes in the "hot path," ensuring zero unnecessary allocations between data receipt and signal generation.
 
 ### 3. 🚀 Performance (Resource Efficiency)
@@ -23,12 +23,14 @@
 
 ### 4. 🛡️ Security (Zero-Trust)
 - **Local-First**: API keys never leave your machine; no cloud middle-man.
+- **Automated Guardrails**: Mandatory `pre-commit` hooks scan for leaked secrets and enforce local testing.
 - **Environment Inversion**: Support for `NICEBOY_*` environment variables keeps secrets out of static files.
 - **Audit Traceability**: Structured JSON logging (`niceboy.log`) for full forensic audit of every bot action.
 
 ### 5. 💰 Trading Profit (Execution)
+- **Dry Run Execution**: Built-in simulator allows for risk-free strategy validation using live price feeds.
 - **Adapter Pattern**: Unified interface for Binance/Bitkub ensures consistent strategy performance across markets.
-- **Resilient Execution**: Panic recovery and context timeouts ensure the bot stays alive and responsive during high-volatility events.
+- **Resilient Execution**: Panic recovery and context timeouts ensure the bot stays alive and responsive.
 - **Execution Precision**: Decoupled strategy and execution engines allow for sub-second order management.
 
 ## 📡 Data Flow

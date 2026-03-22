@@ -16,7 +16,9 @@ Welcome to the `niceboy` project! This document will help you set up your local 
 ```bash
 git clone https://github.com/netfirms/niceboy.git
 cd niceboy
+mkdir -p scripts/git-hooks
 make tidy
+make install-hooks
 ```
 
 ### 2. Configure Environment

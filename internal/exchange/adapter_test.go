@@ -21,7 +21,7 @@ func TestBinanceExchange_GetPrice(t *testing.T) {
 
 	// Direct instantiation to bypass production URL
 	b := &BinanceExchange{
-		client: binance.NewClient("key", "secret"),
+		client: binance.NewClient("YOUR_KEY", "YOUR_SECRET"),
 	}
 	b.client.BaseURL = server.URL
 	price, err := b.GetPrice(context.Background(), "BTCUSDT")
@@ -82,7 +82,7 @@ func TestBinanceExchange_Error(t *testing.T) {
 	defer server.Close()
 
 	b := &BinanceExchange{
-		client: binance.NewClient("key", "secret"),
+		client: binance.NewClient("YOUR_KEY", "YOUR_SECRET"),
 	}
 	b.client.BaseURL = server.URL
 
@@ -100,7 +100,7 @@ func TestBinanceExchange_ExecuteOrder(t *testing.T) {
 	defer server.Close()
 
 	b := &BinanceExchange{
-		client: binance.NewClient("key", "secret"),
+		client: binance.NewClient("YOUR_KEY", "YOUR_SECRET"),
 	}
 	b.client.BaseURL = server.URL
 
@@ -150,7 +150,7 @@ func TestBitkubExchange_SubscribePrice(t *testing.T) {
 
 func TestBinanceExchange_SubscribePrice(t *testing.T) {
 	b := &BinanceExchange{
-		client: binance.NewClient("key", "secret"),
+		client: binance.NewClient("YOUR_KEY", "YOUR_SECRET"),
 	}
 	// Call it but since we can't test external WS easily, we provide a canceled ctx
 	ctx, cancel := context.WithCancel(context.Background())
@@ -221,7 +221,7 @@ func TestBinanceExchange_ExecuteOrderLimit(t *testing.T) {
 	defer server.Close()
 
 	b := &BinanceExchange{
-		client: binance.NewClient("key", "secret"),
+		client: binance.NewClient("YOUR_KEY", "YOUR_SECRET"),
 	}
 	b.client.BaseURL = server.URL
 
@@ -235,7 +235,7 @@ func TestBinanceExchange_SubscribePrice_AskFallback(t *testing.T) {
 	// Simple invocation to trigger the function closure definition
 	// Detailed WS mocking requires heavier setup, so we ensure the function connects and returns.
 	b := &BinanceExchange{
-		client: binance.NewClient("key", "secret"),
+		client: binance.NewClient("YOUR_KEY", "YOUR_SECRET"),
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -251,12 +251,102 @@ func TestBinanceExchange_GetPrice_Empty(t *testing.T) {
 	defer server.Close()
 
 	b := &BinanceExchange{
-		client: binance.NewClient("key", "secret"),
+		client: binance.NewClient("YOUR_KEY", "YOUR_SECRET"),
 	}
 	b.client.BaseURL = server.URL
 
 	_, err := b.GetPrice(context.Background(), "BTCUSDT")
 	if err == nil {
 		t.Error("expected error for empty price list, got nil")
+	}
+}
+
+func TestBinanceExchange_GetBalances(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"balances": [{"asset": "BTC", "free": "1.0", "locked": "0.1"}]}`))
+	}))
+	defer server.Close()
+
+	b := &BinanceExchange{
+		client: binance.NewClient("YOUR_KEY", "YOUR_SECRET"),
+	}
+	b.client.BaseURL = server.URL
+
+	balances, err := b.GetBalances(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if balances["BTC"] != 1.1 {
+		t.Errorf("expected 1.1, got %f", balances["BTC"])
+	}
+}
+
+func TestBinanceExchange_GetOpenOrders(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`[{"symbol": "BTCUSDT", "orderId": 12345, "price": "50000.0", "origQty": "0.1", "side": "BUY"}]`))
+	}))
+	defer server.Close()
+
+	b := &BinanceExchange{
+		client: binance.NewClient("YOUR_KEY", "YOUR_SECRET"),
+	}
+	b.client.BaseURL = server.URL
+
+	orders, err := b.GetOpenOrders(context.Background(), "BTCUSDT")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(orders) != 1 || orders[0].Symbol != "BTCUSDT" {
+		t.Errorf("expected 1 order for BTCUSDT, got %v", orders)
+	}
+}
+
+func TestBitkubExchange_GetBalances(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"error": 0, "result": {"BTC": {"available": 1.0, "reserved": 0.1}}}`))
+	}))
+	defer server.Close()
+
+	b := &BitkubExchange{
+		BaseURL: server.URL,
+		client:  &http.Client{},
+		secret:  "YOUR_DUMMY",
+	}
+
+	balances, err := b.GetBalances(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if balances["BTC"] != 1.1 {
+		t.Errorf("expected 1.1, got %f", balances["BTC"])
+	}
+}
+
+func TestBitkubExchange_GetOpenOrders(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"error": 0, "result": [{"id": 123, "symbol": "THB_BTC", "side": "buy", "rate": 2000000.0, "amount": 0.01}]}`))
+	}))
+	defer server.Close()
+
+	b := &BitkubExchange{
+		BaseURL: server.URL,
+		client:  &http.Client{},
+		secret:  "YOUR_DUMMY",
+	}
+
+	orders, err := b.GetOpenOrders(context.Background(), "THB_BTC")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(orders) != 1 || orders[0].Symbol != "THB_BTC" {
+		t.Errorf("expected 1 order for THB_BTC, got %v", orders)
 	}
 }

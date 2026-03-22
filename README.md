@@ -24,10 +24,11 @@ sequenceDiagram
 ## ✨ Features
 
 - **🚀 Low Footprint**: Optimized Go core with sub-10MB memory usage.
-- **🖥️ Console-First TUI**: Interactive terminal interface powered by Bubble Tea and `lipgloss`, featuring boxed layouts, real-time metrics, and live execution tracking.
-- **🔌 Modular Architecture**: Plug-and-play strategies and unified exchange adapters.
-- **🛡️ Secure & Resilient**: Local-first security with recovery-guarded trading loops.
-- **📊 Structured Auditing**: Dual-output logging (Console + JSON) for full traceability.
+- **🖥️ Tabbed TUI Dashboard**: Professionally styled terminal user interface with multiple views for **Stats**, **Portfolio**, **Orders**, and **Audit Logs**.
+- **🧪 Dry Run Simulator**: Safely test strategies with real-time market data without risking actual funds.
+- **🛡️ Git Security Hooks**: Automated pre-commit scanning to prevent API key leaks and ensure 100% test passing.
+- **🔌 Multi-Exchange**: Production-ready adapters for **Binance** and **Bitkub** (V3 API).
+- **📊 Structured Auditing**: Dual-output logging (Console + JSON) for full forensic traceability.
 
 ## 🛠️ Technology Stack
 
@@ -69,10 +70,15 @@ Whether you are looking to run the bot or build upon it, follow the path that fi
    cp config.example.yaml config.yaml
    # Edit config.yaml with your API keys
    ```
-4. **Launch TUI**:
+4. **Install Hooks**: (Recommended for security)
+   ```bash
+   make install-hooks
+   ```
+5. **Launch TUI**:
    ```bash
    go run cmd/niceboy/main.go
    ```
+   *Use `Tab` to switch between Dashboard and Audit Logs!*
 
 ## 👯 Running Multiple Instances
 

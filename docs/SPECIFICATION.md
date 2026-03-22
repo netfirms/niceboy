@@ -38,6 +38,8 @@ Adapters must implement the following:
 - `GetPrice(ctx, symbol) (float64, error)`: Unicast price fetch.
 - `SubscribePrice(ctx, symbol, ch)`: Real-time stream (WebSocket).
 - `ExecuteOrder(ctx, symbol, side, type, qty, price) error`: Live trade execution.
+- `GetBalances(ctx) (map[string]float64, error)`: Aggregated account holdings.
+- `GetOpenOrders(ctx, symbol) ([]Order, error)`: Staged market instructions.
 
 ### 3.2 Strategy Interface
 - `GetName() string`: Unique identifier for the registry.
@@ -61,3 +63,7 @@ Adapters must implement the following:
 ## 5. Security & Isolation
 - **Credential Precedence**: Runtime environment variables (`NICEBOY_{EXCH}_{FIELD}`) ALWAYS override static entries in `config.yaml`.
 - **Isolation**: Each bot instance must operate in its own process space with unique log and config handles.
+
+## 6. Automated Guardrails (Pre-Commit)
+- **Secret Scanning**: Staged logic MUST be scanned for high-entropy strings and credential patterns (e.g., `key:`, `secret:`) that lack placeholder prefixes.
+- **QA Enforcement**: All unit tests MUST pass locally before a commit is approved by the Git hook.
