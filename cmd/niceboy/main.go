@@ -192,17 +192,35 @@ func main() {
 					if err == nil {
 						p.Send(ui.BalanceUpdateMsg(balances))
 						engineCh <- balances
+					} else {
+						p.Send(ui.AuditMsg(fmt.Sprintf("[ERROR] Failed to fetch balances: %v", err)))
 					}
-					orders, _ := exch.GetOpenOrders(fetchCtx, symbol)
-					p.Send(ui.OpenOrdersUpdateMsg(orders))
-					book, _ := exch.GetOrderBook(fetchCtx, symbol, 5)
-					p.Send(ui.OrderBookUpdateMsg(book))
+					
+					orders, err := exch.GetOpenOrders(fetchCtx, symbol)
+					if err == nil {
+						p.Send(ui.OpenOrdersUpdateMsg(orders))
+					} else {
+						p.Send(ui.AuditMsg(fmt.Sprintf("[ERROR] Failed to fetch open orders: %v", err)))
+					}
+
+					book, err := exch.GetOrderBook(fetchCtx, symbol, 5)
+					if err == nil {
+						p.Send(ui.OrderBookUpdateMsg(book))
+					} else {
+						p.Send(ui.AuditMsg(fmt.Sprintf("[ERROR] Failed to fetch order book: %v", err)))
+					}
+
 					pulse := make(map[string]float64)
-					btcP, _ := exch.GetPrice(fetchCtx, "BTCUSDT")
-					pulse["BTC"] = btcP
-					p.Send(ui.MarketPulseMsg(pulse))
-					stats, _ := dbStore.GetStats()
-					p.Send(ui.StatsUpdateMsg(stats))
+					btcP, err := exch.GetPrice(fetchCtx, "BTCUSDT")
+					if err == nil {
+						pulse["BTC"] = btcP
+						p.Send(ui.MarketPulseMsg(pulse))
+					}
+					
+					stats, err := dbStore.GetStats()
+					if err == nil {
+						p.Send(ui.StatsUpdateMsg(stats))
+					}
 					fetchCancel()
 				}
 			}
