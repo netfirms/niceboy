@@ -103,13 +103,15 @@ type Model struct {
 	OrderBook  exchange.OrderBook
 	AvgLatency time.Duration
 	MarketPulse map[string]float64 // BTC, ETH prices
+	AppVersion string
+	AppCommit  string
 }
 
 type OrderBookUpdateMsg exchange.OrderBook
 type LatencyUpdateMsg time.Duration
 type MarketPulseMsg map[string]float64
 
-func NewModel(exchangeName, symbol string, dryRun bool, db database.Store, strategyName string, strategyParams map[string]interface{}, orderQuantity float64) Model {
+func NewModel(exchangeName, symbol string, dryRun bool, db database.Store, strategyName string, strategyParams map[string]interface{}, orderQuantity float64, appVersion, appCommit string) Model {
 	return Model{
 		ExchangeName:   exchangeName,
 		Symbol:         symbol,
@@ -123,6 +125,8 @@ func NewModel(exchangeName, symbol string, dryRun bool, db database.Store, strat
 		OrderQuantity:  orderQuantity,
 		TradeMarkers:   make(map[int]string),
 		MarketPulse:    make(map[string]float64),
+		AppVersion:     appVersion,
+		AppCommit:      appCommit,
 	}
 }
 
@@ -392,11 +396,21 @@ func (m Model) View() string {
 	
 	headerSection := lipgloss.JoinVertical(lipgloss.Center, title, tabsRow)
 
+	vStr := m.AppVersion
+	if vStr == "dev" {
+		vStr = fmt.Sprintf("dev-%s", m.AppCommit[:min(7, len(m.AppCommit))])
+	}
+	versionStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#555555"))
+	footerRow := lipgloss.JoinHorizontal(lipgloss.Center, 
+		lipgloss.PlaceHorizontal(m.Width-15, lipgloss.Center, auditStyle.Render(" [tab:switch view] [e:export] [x:clear] [q:quit] ")),
+		versionStyle.Render(vStr),
+	)
+
 	if m.ActiveTab == TabLogs || m.ActiveTab == TabHistory || m.ActiveTab == TabStrategy {
 		return fmt.Sprintf("%s\n\n%s\n%s",
 			lipgloss.PlaceHorizontal(m.Width, lipgloss.Center, headerSection),
 			m.Viewport.View(),
-			lipgloss.PlaceHorizontal(m.Width, lipgloss.Center, auditStyle.Render(" [tab:switch view] [e:export] [x:clear] [q:quit] ")))
+			lipgloss.PlaceHorizontal(m.Width, lipgloss.Center, footerRow))
 	}
 
 	if m.ActiveTab == TabCockpit {
@@ -501,10 +515,20 @@ func (m Model) View() string {
 		statusLine = lipgloss.NewStyle().Foreground(lipgloss.Color("#00ffd5")).Bold(true).Render(" " + m.StatusMsg + " ")
 	}
 
+	vStr = m.AppVersion
+	if vStr == "dev" {
+		vStr = fmt.Sprintf("dev-%s", m.AppCommit[:min(7, len(m.AppCommit))])
+	}
+	versionStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#555555"))
+	footerRow = lipgloss.JoinHorizontal(lipgloss.Center, 
+		lipgloss.PlaceHorizontal(m.Width-15, lipgloss.Center, statusLine),
+		versionStyle.Render(vStr),
+	)
+
 	return fmt.Sprintf("%s\n\n%s\n\n%s", 
 		lipgloss.PlaceHorizontal(m.Width, lipgloss.Center, headerSection),
 		lipgloss.PlaceHorizontal(m.Width, lipgloss.Center, dashboardMatrix),
-		lipgloss.PlaceHorizontal(m.Width, lipgloss.Center, statusLine))
+		lipgloss.PlaceHorizontal(m.Width, lipgloss.Center, footerRow))
 }
 
 func (m Model) renderCockpit(headerSection string) string {
@@ -621,10 +645,20 @@ func (m Model) renderCockpit(headerSection string) string {
 		statusLine = lipgloss.NewStyle().Foreground(lipgloss.Color("#00ffd5")).Bold(true).Render(" " + m.StatusMsg + " ")
 	}
 
+	vStr := m.AppVersion
+	if vStr == "dev" {
+		vStr = fmt.Sprintf("dev-%s", m.AppCommit[:min(7, len(m.AppCommit))])
+	}
+	versionStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#555555"))
+	footerRow := lipgloss.JoinHorizontal(lipgloss.Center, 
+		lipgloss.PlaceHorizontal(m.Width-15, lipgloss.Center, statusLine),
+		versionStyle.Render(vStr),
+	)
+
 	return fmt.Sprintf("%s\n\n%s\n\n%s", 
 		lipgloss.PlaceHorizontal(m.Width, lipgloss.Center, headerSection),
 		lipgloss.PlaceHorizontal(m.Width, lipgloss.Center, cockpitMatrix),
-		lipgloss.PlaceHorizontal(m.Width, lipgloss.Center, statusLine))
+		lipgloss.PlaceHorizontal(m.Width, lipgloss.Center, footerRow))
 }
 
 func (m Model) renderOrderBook() string {

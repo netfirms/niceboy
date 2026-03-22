@@ -130,7 +130,7 @@ func main() {
 		}
 
 		// 4. Initialize UI
-		m := ui.NewModel(cfg.ActiveExchange, symbol, cfg.DryRun, dbStore, strategyName, cfg.StrategyParameters, cfg.OrderQuantity)
+		m := ui.NewModel(cfg.ActiveExchange, symbol, cfg.DryRun, dbStore, strategyName, cfg.StrategyParameters, cfg.OrderQuantity, version, commit)
 		p := tea.NewProgram(m, tea.WithAltScreen())
 
 		// 5. Background Trading Loop (WebSocket & Execution)

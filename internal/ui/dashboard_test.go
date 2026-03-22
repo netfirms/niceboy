@@ -11,7 +11,7 @@ import (
 )
 
 func TestNewModel(t *testing.T) {
-	m := NewModel("binance", "BTCUSDT", true, nil, "sma_crossover", map[string]interface{}{"short": 5}, 0.01)
+	m := NewModel("binance", "BTCUSDT", true, nil, "sma_crossover", map[string]interface{}{"short": 5}, 0.01, "dev", "test")
 	if m.ExchangeName != "binance" {
 		t.Errorf("expected binance, got %s", m.ExchangeName)
 	}
@@ -24,7 +24,7 @@ func TestNewModel(t *testing.T) {
 }
 
 func TestModelUpdates(t *testing.T) {
-	m := NewModel("bitkub", "THB_BTC", false, nil, "sma_crossover", nil, 0.01)
+	m := NewModel("bitkub", "THB_BTC", false, nil, "sma_crossover", nil, 0.01, "dev", "test")
 	m.Viewport = viewport.New(100, 20)
 	
 	// Test Price Update
@@ -57,7 +57,7 @@ func TestModelUpdates(t *testing.T) {
 }
 
 func TestViewRendering(t *testing.T) {
-	m := NewModel("binance", "BTCUSDT", true, nil, "sma_crossover", map[string]interface{}{"short": 10}, 0.01)
+	m := NewModel("binance", "BTCUSDT", false, nil, "sma_crossover", map[string]interface{}{"fast_period": 10.0, "slow_period": 21.0}, 0.001, "dev", "test")
 	m.Width = 100
 	m.Height = 40
 	m.Ready = true
