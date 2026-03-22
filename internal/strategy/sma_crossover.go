@@ -68,8 +68,7 @@ func (s *SMACrossover) OnMarketData(data exchange.MarketData) Signal {
 
 	shortSMA := s.calculateSMA(s.shortPeriod)
 	longSMA := s.calculateSMA(s.longPeriod)
-
-	fmt.Printf("[Strategy] Short SMA: %.2f, Long SMA: %.2f\n", shortSMA, longSMA)
+	// Log removed to preserve Bubble Tea TUI rendering lock.
 
 	if shortSMA > longSMA {
 		return Signal{Type: Buy, Symbol: data.Symbol, Price: data.Price, Reason: "Short SMA crossed above Long SMA"}
