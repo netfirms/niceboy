@@ -60,6 +60,10 @@ func main() {
 	if exch != nil {
 		symbol := exchCfg.Symbol
 
+		// Global Context for Graceful Shutdown
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
 		// 3. Initialize Strategy
 		strategyName := cfg.Strategy
 		if strategyName == "" {
@@ -76,7 +80,7 @@ func main() {
 		p := tea.NewProgram(m, tea.WithAltScreen())
 
 		// 5. Background Trading Loop (WebSocket & Execution)
-		go func() {
+		go func(cmdCtx context.Context) {
 			defer func() {
 				if r := recover(); r != nil {
 					p.Send(ui.AuditMsg(fmt.Sprintf("PANIC: %v", r)))
@@ -84,10 +88,8 @@ func main() {
 			}()
 
 			marketDataCh := make(chan exchange.MarketData, 100)
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
 
-			err := exch.SubscribePrice(ctx, symbol, marketDataCh)
+			err := exch.SubscribePrice(cmdCtx, symbol, marketDataCh)
 			if err != nil {
 				log.Fatal().Err(err).Msg("Failed to subscribe to real-time market data")
 			}
@@ -132,34 +134,39 @@ func main() {
 					}
 				}
 			}
-		}()
+		}(ctx)
 
 		// 6. Background Account Polling Loop
-		go func() {
+		go func(cmdCtx context.Context) {
 			ticker := time.NewTicker(5 * time.Second)
 			defer ticker.Stop()
 			
 			// Initial fetch
-			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-			if balances, err := exch.GetBalances(ctx); err == nil {
+			fetchCtx, fetchCancel := context.WithTimeout(cmdCtx, 3*time.Second)
+			if balances, err := exch.GetBalances(fetchCtx); err == nil {
 				p.Send(ui.BalanceUpdateMsg(balances))
 			}
-			if orders, err := exch.GetOpenOrders(ctx, symbol); err == nil {
+			if orders, err := exch.GetOpenOrders(fetchCtx, symbol); err == nil {
 				p.Send(ui.OpenOrdersUpdateMsg(orders))
 			}
-			cancel()
+			fetchCancel()
 
-			for range ticker.C {
-				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-				if balances, err := exch.GetBalances(ctx); err == nil {
-					p.Send(ui.BalanceUpdateMsg(balances))
+			for {
+				select {
+				case <-cmdCtx.Done():
+					return
+				case <-ticker.C:
+					fetchCtx, fetchCancel := context.WithTimeout(cmdCtx, 3*time.Second)
+					if balances, err := exch.GetBalances(fetchCtx); err == nil {
+						p.Send(ui.BalanceUpdateMsg(balances))
+					}
+					if orders, err := exch.GetOpenOrders(fetchCtx, symbol); err == nil {
+						p.Send(ui.OpenOrdersUpdateMsg(orders))
+					}
+					fetchCancel()
 				}
-				if orders, err := exch.GetOpenOrders(ctx, symbol); err == nil {
-					p.Send(ui.OpenOrdersUpdateMsg(orders))
-				}
-				cancel()
 			}
-		}()
+		}(ctx)
 
 		if _, err := p.Run(); err != nil {
 			log.Fatal().Err(err).Msg("Failed to run UI")
