@@ -243,7 +243,7 @@ func main() {
 
 		// 6. Background Account Polling Loop
 		go func(cmdCtx context.Context) {
-			ticker := time.NewTicker(10 * time.Second) // Increased from 5s
+			ticker := time.NewTicker(2 * time.Second) // Increased speed for better cockpit experience
 			defer ticker.Stop()
 			
 			pollFunc := func() {
@@ -271,6 +271,8 @@ func main() {
 				book, err := exch.GetOrderBook(fetchCtx, symbol, 5)
 				if err == nil {
 					p.Send(ui.OrderBookUpdateMsg(book))
+				} else {
+					p.Send(ui.AuditMsg(fmt.Sprintf("WARN: Order book update failed: %v", err)))
 				}
 
 				// 3. Market Pulse (Context - Try to get BTC/ETH)

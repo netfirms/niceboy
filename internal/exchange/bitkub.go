@@ -494,23 +494,46 @@ func (b *BitkubExchange) GetOrderBook(ctx context.Context, symbol string, limit 
 		return OrderBook{}, fmt.Errorf("bitkub depth failed: %d", resp.StatusCode)
 	}
 
-	var data struct {
-		Asks [][]interface{} `json:"asks"`
-		Bids [][]interface{} `json:"bids"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
 		return OrderBook{}, err
 	}
 
+	// Bitkub V3 can return either direct depth object or wrapped in an envelope
+	var envelope struct {
+		Error int `json:"error"`
+		Result struct {
+			Asks [][]interface{} `json:"asks"`
+			Bids [][]interface{} `json:"bids"`
+		} `json:"result"`
+	}
+	
+	var directData struct {
+		Asks [][]interface{} `json:"asks"`
+		Bids [][]interface{} `json:"bids"`
+	}
+
 	book := OrderBook{Symbol: symbol}
-	for _, bid := range data.Bids {
+	var asks, bids [][]interface{}
+
+	if err := json.Unmarshal(body, &envelope); err == nil && (len(envelope.Result.Asks) > 0 || len(envelope.Result.Bids) > 0) {
+		asks = envelope.Result.Asks
+		bids = envelope.Result.Bids
+	} else if err := json.Unmarshal(body, &directData); err == nil {
+		asks = directData.Asks
+		bids = directData.Bids
+	} else {
+		return OrderBook{}, fmt.Errorf("failed to parse Bitkub depth response: %s", string(body))
+	}
+
+	for _, bid := range bids {
 		if len(bid) >= 2 {
 			p, _ := bid[0].(float64)
 			q, _ := bid[1].(float64)
 			book.Bids = append(book.Bids, DepthEntry{Price: p, Quantity: q})
 		}
 	}
-	for _, ask := range data.Asks {
+	for _, ask := range asks {
 		if len(ask) >= 2 {
 			p, _ := ask[0].(float64)
 			q, _ := ask[1].(float64)
