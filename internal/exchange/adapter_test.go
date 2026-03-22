@@ -129,16 +129,16 @@ func TestBitkubExchange_SubscribePrice(t *testing.T) {
 		BaseWSURL: wsURL,
 		client:    &http.Client{},
 	}
-	
+
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	
+
 	ch := make(chan MarketData, 1)
 	err := b.SubscribePrice(ctx, "THB_BTC", ch)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	
+
 	select {
 	case md := <-ch:
 		if md.Price != 2000000.0 {
@@ -194,7 +194,7 @@ func TestBitkubExchange_ExecuteOrder(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	
+
 	err = b.ExecuteOrder(context.Background(), "THB_BTC", Buy, Market, -1, 0)
 	if err == nil {
 		t.Fatal("expected error for invalid quantity, got nil")

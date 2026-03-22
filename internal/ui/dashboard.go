@@ -94,17 +94,17 @@ type Model struct {
 	StrategyParams map[string]interface{}
 	OrderQuantity  float64
 
-	StatusMsg      string
-	StatusExpiry   time.Time
+	StatusMsg    string
+	StatusExpiry time.Time
 
 	PriceHistory []float64
 	TradeMarkers map[int]string // index -> "B" or "S"
 
-	OrderBook  exchange.OrderBook
-	AvgLatency time.Duration
+	OrderBook   exchange.OrderBook
+	AvgLatency  time.Duration
 	MarketPulse map[string]float64 // BTC, ETH prices
-	AppVersion string
-	AppCommit  string
+	AppVersion  string
+	AppCommit   string
 }
 
 type OrderBookUpdateMsg exchange.OrderBook
@@ -171,16 +171,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case SignalMsg:
 		m.Signal = strategy.Signal(msg)
-		m.addAudit(fmt.Sprintf("[%s] %s: %s (%s)", 
-			time.Now().Format("15:04:05"), 
-			m.Signal.Type, 
+		m.addAudit(fmt.Sprintf("[%s] %s: %s (%s)",
+			time.Now().Format("15:04:05"),
+			m.Signal.Type,
 			m.Signal.Reason,
 			fmt.Sprintf("%.2f", m.Signal.Price)))
-		
+
 		// Record trade marker if signal is BUY or SELL and price is valid
 		if m.Signal.Type == strategy.Buy || m.Signal.Type == strategy.Sell {
 			marker := "B"
-			if m.Signal.Type == strategy.Sell { marker = "S" }
+			if m.Signal.Type == strategy.Sell {
+				marker = "S"
+			}
 			if len(m.PriceHistory) > 0 {
 				m.TradeMarkers[len(m.PriceHistory)-1] = marker
 			}
@@ -248,8 +250,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.AuditLog = []string{}
 			m.Viewport.SetContent("")
 			return m, tea.Batch(
-				m.clearTradesCmd(), 
-				m.fetchStatsCmd(), 
+				m.clearTradesCmd(),
+				m.fetchStatsCmd(),
 				m.fetchTradesCmd(),
 				func() tea.Msg { return AuditMsg("[SYSTEM] All performance and audit records cleared.") },
 			)
@@ -393,7 +395,7 @@ func (m Model) View() string {
 		tabStrat = activeTabStyle.Render("Strategy")
 	}
 	tabsRow := lipgloss.JoinHorizontal(lipgloss.Top, tabCockpit, tabAccount, tabLogs, tabHist, tabStrat)
-	
+
 	headerSection := lipgloss.JoinVertical(lipgloss.Center, title, tabsRow)
 
 	vStr := m.AppVersion
@@ -401,7 +403,7 @@ func (m Model) View() string {
 		vStr = fmt.Sprintf("dev-%s", m.AppCommit[:min(7, len(m.AppCommit))])
 	}
 	versionStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#555555"))
-	footerRow := lipgloss.JoinHorizontal(lipgloss.Center, 
+	footerRow := lipgloss.JoinHorizontal(lipgloss.Center,
 		lipgloss.PlaceHorizontal(m.Width-15, lipgloss.Center, auditStyle.Render(" [tab:switch view] [e:export] [x:clear] [q:quit] ")),
 		versionStyle.Render(vStr),
 	)
@@ -418,7 +420,7 @@ func (m Model) View() string {
 	}
 
 	// --- Dashboard View Building (Renamed to Account) ---
-	
+
 	// 3. Stats Box
 	statsContent := fmt.Sprintf(
 		"Status:  %s\nPrice:   %s\nTrades:  %d\nUpdated: %s",
@@ -440,7 +442,7 @@ func (m Model) View() string {
 	default:
 		signalView = waitStyle.Render(signalStr)
 	}
-	
+
 	signalContent := fmt.Sprintf(
 		"Current Signal: %s\nStrategy Logic:\n%s",
 		signalView,
@@ -462,10 +464,18 @@ func (m Model) View() string {
 	sort.Slice(keys, func(i, j int) bool {
 		ki := keys[i]
 		kj := keys[j]
-		if ki == "USDT" { return true }
-		if kj == "USDT" { return false }
-		if ki == "USDC" { return true }
-		if kj == "USDC" { return false }
+		if ki == "USDT" {
+			return true
+		}
+		if kj == "USDT" {
+			return false
+		}
+		if ki == "USDC" {
+			return true
+		}
+		if kj == "USDC" {
+			return false
+		}
 		return ki < kj
 	})
 
@@ -491,7 +501,7 @@ func (m Model) View() string {
 	if len(m.OpenOrders) == 0 {
 		ordersStr = "No active orders."
 	}
-	
+
 	ordersBox := boxStyle.Width(35).Render(fmt.Sprintf("Open Orders: %d\n──────────────\n%s", len(m.OpenOrders), strings.TrimSuffix(ordersStr, "\n")))
 
 	// 7. Performance Box
@@ -507,7 +517,7 @@ func (m Model) View() string {
 	// Layout the blocks
 	topWidgets := lipgloss.JoinHorizontal(lipgloss.Top, statsBox, signalBox, perfBox)
 	midWidgets := lipgloss.JoinHorizontal(lipgloss.Top, accBox, ordersBox)
-	
+
 	dashboardMatrix := lipgloss.JoinVertical(lipgloss.Center, topWidgets, midWidgets)
 
 	statusLine := auditStyle.Render(" [tab:switch view] [e:export] [x:clear] [q:quit] ")
@@ -520,12 +530,12 @@ func (m Model) View() string {
 		vStr = fmt.Sprintf("dev-%s", m.AppCommit[:min(7, len(m.AppCommit))])
 	}
 	versionStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#555555"))
-	footerRow = lipgloss.JoinHorizontal(lipgloss.Center, 
+	footerRow = lipgloss.JoinHorizontal(lipgloss.Center,
 		lipgloss.PlaceHorizontal(m.Width-15, lipgloss.Center, statusLine),
 		versionStyle.Render(vStr),
 	)
 
-	return fmt.Sprintf("%s\n\n%s\n\n%s", 
+	return fmt.Sprintf("%s\n\n%s\n\n%s",
 		lipgloss.PlaceHorizontal(m.Width, lipgloss.Center, headerSection),
 		lipgloss.PlaceHorizontal(m.Width, lipgloss.Center, dashboardMatrix),
 		lipgloss.PlaceHorizontal(m.Width, lipgloss.Center, footerRow))
@@ -536,7 +546,7 @@ func (m Model) renderCockpit(headerSection string) string {
 	pnl := 0.0
 	pnlPct := 0.0
 	inPosition := m.Signal.EntryPrice > 0 && m.Price > 0
-	
+
 	posTitle := "POSITION: NONE"
 	posColor := lipgloss.Color("#555555")
 	if inPosition {
@@ -556,7 +566,7 @@ func (m Model) renderCockpit(headerSection string) string {
 	}
 
 	posBox := boxStyle.Width(35).BorderForeground(posColor).Render(
-		fmt.Sprintf("%s\nEntry: $%.2f\nP/L:   %s", 
+		fmt.Sprintf("%s\nEntry: $%.2f\nP/L:   %s",
 			lipgloss.NewStyle().Foreground(posColor).Bold(true).Render(posTitle),
 			m.Signal.EntryPrice,
 			lipgloss.NewStyle().Foreground(posColor).Render(pnlText),
@@ -565,11 +575,17 @@ func (m Model) renderCockpit(headerSection string) string {
 
 	// 2. Guardrails (SL/TP/Trailing)
 	slText := "DISABLED"
-	if m.Signal.StopLoss > 0 { slText = fmt.Sprintf("$%.2f", m.Signal.StopLoss) }
+	if m.Signal.StopLoss > 0 {
+		slText = fmt.Sprintf("$%.2f", m.Signal.StopLoss)
+	}
 	tpText := "DISABLED"
-	if m.Signal.TakeProfit > 0 { tpText = fmt.Sprintf("$%.2f", m.Signal.TakeProfit) }
+	if m.Signal.TakeProfit > 0 {
+		tpText = fmt.Sprintf("$%.2f", m.Signal.TakeProfit)
+	}
 	tsText := "DISABLED"
-	if m.Signal.TrailingStop > 0 { tsText = fmt.Sprintf("$%.2f", m.Signal.TrailingStop) }
+	if m.Signal.TrailingStop > 0 {
+		tsText = fmt.Sprintf("$%.2f", m.Signal.TrailingStop)
+	}
 
 	guardBox := boxStyle.Width(35).Render(
 		fmt.Sprintf("GUARDRAILS:\nStop Loss:  %s\nTake Profit: %s\nTrailing:    %s",
@@ -604,11 +620,15 @@ func (m Model) renderCockpit(headerSection string) string {
 		Padding(1, 4).
 		Border(lipgloss.DoubleBorder()).
 		Render(fmt.Sprintf("$ %.2f", m.Price))
-	
+
 	sigView := waitStyle.Render("WAITING")
-	if m.Signal.Type == strategy.Buy { sigView = buyStyle.Render("BUY") }
-	if m.Signal.Type == strategy.Sell { sigView = sellStyle.Render("SELL") }
-	
+	if m.Signal.Type == strategy.Buy {
+		sigView = buyStyle.Render("BUY")
+	}
+	if m.Signal.Type == strategy.Sell {
+		sigView = sellStyle.Render("SELL")
+	}
+
 	signalArea := lipgloss.NewStyle().Padding(1, 4).Render("SIGNAL: " + sigView)
 
 	centerArea := lipgloss.JoinVertical(lipgloss.Center, priceArea, signalArea)
@@ -616,7 +636,9 @@ func (m Model) renderCockpit(headerSection string) string {
 	// 5. Mini History (Last 10)
 	histLines := []string{"LAST EXECUTIONS:"}
 	limit := 10
-	if len(m.Trades) < limit { limit = len(m.Trades) }
+	if len(m.Trades) < limit {
+		limit = len(m.Trades)
+	}
 	for i := 0; i < limit; i++ {
 		t := m.Trades[i]
 		side := buyStyle.Render("▲ B")
@@ -625,21 +647,23 @@ func (m Model) renderCockpit(headerSection string) string {
 		}
 		histLines = append(histLines, fmt.Sprintf(" • %s: %s %.2f", t.Timestamp.Format("15:04:05"), side, t.Price))
 	}
-	if len(m.Trades) == 0 { histLines = append(histLines, " • No trades yet") }
+	if len(m.Trades) == 0 {
+		histLines = append(histLines, " • No trades yet")
+	}
 	histBox := boxStyle.Width(35).Render(strings.Join(histLines, "\n"))
 
 	// Layout
 	topRow := lipgloss.JoinHorizontal(lipgloss.Top, posBox, guardBox, healthBox)
 	chartArea := m.renderChart()
-	
+
 	depthBox := m.renderOrderBook()
 	pulseBox := m.renderMarketPulse()
-	
+
 	midRow := lipgloss.JoinHorizontal(lipgloss.Center, centerArea, chartArea, histBox)
 	bottomRow := lipgloss.JoinHorizontal(lipgloss.Top, depthBox, pulseBox)
-	
+
 	cockpitMatrix := lipgloss.JoinVertical(lipgloss.Center, topRow, midRow, bottomRow)
-	
+
 	statusLine := auditStyle.Render(" [tab:switch view] [b:buy] [s:sell] [k:kill] [e:export] [q:quit] ")
 	if m.StatusMsg != "" {
 		statusLine = lipgloss.NewStyle().Foreground(lipgloss.Color("#00ffd5")).Bold(true).Render(" " + m.StatusMsg + " ")
@@ -650,12 +674,12 @@ func (m Model) renderCockpit(headerSection string) string {
 		vStr = fmt.Sprintf("dev-%s", m.AppCommit[:min(7, len(m.AppCommit))])
 	}
 	versionStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#555555"))
-	footerRow := lipgloss.JoinHorizontal(lipgloss.Center, 
+	footerRow := lipgloss.JoinHorizontal(lipgloss.Center,
 		lipgloss.PlaceHorizontal(m.Width-15, lipgloss.Center, statusLine),
 		versionStyle.Render(vStr),
 	)
 
-	return fmt.Sprintf("%s\n\n%s\n\n%s", 
+	return fmt.Sprintf("%s\n\n%s\n\n%s",
 		lipgloss.PlaceHorizontal(m.Width, lipgloss.Center, headerSection),
 		lipgloss.PlaceHorizontal(m.Width, lipgloss.Center, cockpitMatrix),
 		lipgloss.PlaceHorizontal(m.Width, lipgloss.Center, footerRow))
@@ -665,20 +689,24 @@ func (m Model) renderOrderBook() string {
 	var lines []string
 	lines = append(lines, "ORDER BOOK (Top 5 depth)")
 	lines = append(lines, lipgloss.NewStyle().Foreground(lipgloss.Color("#ff5555")).Render("  PRICE       QUANTITY (ASK)"))
-	
+
 	// Asks (Reverse order for visual: Highest Ask on top)
 	limit := 5
-	if len(m.OrderBook.Asks) < limit { limit = len(m.OrderBook.Asks) }
+	if len(m.OrderBook.Asks) < limit {
+		limit = len(m.OrderBook.Asks)
+	}
 	for i := limit - 1; i >= 0; i-- {
 		a := m.OrderBook.Asks[i]
 		lines = append(lines, fmt.Sprintf("  %-10.2f  %-10.4f", a.Price, a.Quantity))
 	}
-	
+
 	lines = append(lines, "  ─────────── SPREAD ──────────")
-	
+
 	// Bids
 	limit = 5
-	if len(m.OrderBook.Bids) < limit { limit = len(m.OrderBook.Bids) }
+	if len(m.OrderBook.Bids) < limit {
+		limit = len(m.OrderBook.Bids)
+	}
 	for i := 0; i < limit; i++ {
 		b := m.OrderBook.Bids[i]
 		lines = append(lines, fmt.Sprintf("  %-10.2f  %-10.4f", b.Price, b.Quantity))
@@ -691,20 +719,24 @@ func (m Model) renderOrderBook() string {
 func (m Model) renderMarketPulse() string {
 	var lines []string
 	lines = append(lines, "MARKET PULSE (Context)")
-	
+
 	btc := m.MarketPulse["BTC"]
 	eth := m.MarketPulse["ETH"]
-	
+
 	lines = append(lines, fmt.Sprintf("BTC:  $%.2f", btc))
 	lines = append(lines, fmt.Sprintf("ETH:  $%.2f", eth))
 	lines = append(lines, "")
 	lines = append(lines, "BOT HEALTH:")
-	
+
 	latencyColor := lipgloss.Color("#00ff00")
-	if m.AvgLatency > 200*time.Millisecond { latencyColor = lipgloss.Color("#ffcc00") }
-	if m.AvgLatency > 500*time.Millisecond { latencyColor = lipgloss.Color("#ff5555") }
-	
-	lines = append(lines, fmt.Sprintf("Latency: %s", 
+	if m.AvgLatency > 200*time.Millisecond {
+		latencyColor = lipgloss.Color("#ffcc00")
+	}
+	if m.AvgLatency > 500*time.Millisecond {
+		latencyColor = lipgloss.Color("#ff5555")
+	}
+
+	lines = append(lines, fmt.Sprintf("Latency: %s",
 		lipgloss.NewStyle().Foreground(latencyColor).Render(m.AvgLatency.String())))
 	lines = append(lines, fmt.Sprintf("Status:  %s", m.Status))
 
@@ -722,8 +754,10 @@ func (m *Model) updateViewportContent() {
 		histLines = append(histLines, "  ────────────────────────────────────────────────────────")
 		for _, t := range m.Trades {
 			side := buyStyle.Render("BUY ")
-			if strings.ToUpper(t.Side) == "SELL" { side = sellStyle.Render("SELL") }
-			line := fmt.Sprintf("  %s  %s  %-10.2f  %-5.4f  %s", 
+			if strings.ToUpper(t.Side) == "SELL" {
+				side = sellStyle.Render("SELL")
+			}
+			line := fmt.Sprintf("  %s  %s  %-10.2f  %-5.4f  %s",
 				t.Timestamp.Format("15:04:05"), side, t.Price, t.Quantity, t.Reason)
 			histLines = append(histLines, line)
 		}
@@ -738,7 +772,9 @@ func (m *Model) updateViewportContent() {
 		stratLines = append(stratLines, fmt.Sprintf("  Order Size: %.4f", m.OrderQuantity))
 		stratLines = append(stratLines, "  Parameters:")
 		var keys []string
-		for k := range m.StrategyParams { keys = append(keys, k) }
+		for k := range m.StrategyParams {
+			keys = append(keys, k)
+		}
 		sort.Strings(keys)
 		for _, k := range keys {
 			stratLines = append(stratLines, fmt.Sprintf("    • %-15s : %v", k, m.StrategyParams[k]))
@@ -750,10 +786,14 @@ func (m *Model) updateViewportContent() {
 
 func (m Model) renderChart() string {
 	// Dynamically calculate width based on terminal size, with bounds
-	width := m.Width - 80 
-	if width < 50 { width = 50 }
-	if width > 120 { width = 120 } // Cap visual width to prevent extreme stretching
-	
+	width := m.Width - 80
+	if width < 50 {
+		width = 50
+	}
+	if width > 120 {
+		width = 120
+	} // Cap visual width to prevent extreme stretching
+
 	height := 8
 	if len(m.PriceHistory) < 2 {
 		return boxStyle.Width(width + 2).Height(height).Render("Waiting for data...")
@@ -763,8 +803,12 @@ func (m Model) renderChart() string {
 	minP := m.PriceHistory[0]
 	maxP := m.PriceHistory[0]
 	for _, p := range m.PriceHistory {
-		if p < minP { minP = p }
-		if p > maxP { maxP = p }
+		if p < minP {
+			minP = p
+		}
+		if p > maxP {
+			maxP = p
+		}
 	}
 	if maxP == minP {
 		maxP += 0.01
@@ -792,28 +836,36 @@ func (m Model) renderChart() string {
 		histIdx := i * stride
 		if stride > 1 {
 			// When downsampling, we take the last point in the bucket to represent the "current" state
-			histIdx = (i + 1) * stride - 1
+			histIdx = (i+1)*stride - 1
 		}
-		
+
 		if histIdx >= historyLen {
-			if i == 0 { continue }
-			break 
+			if i == 0 {
+				continue
+			}
+			break
 		}
 
 		p := m.PriceHistory[histIdx]
 		// Normalize P to [0, height-1]
 		row := int(((p - minP) / (maxP - minP)) * float64(height-1))
 		rowIdx := (height - 1) - row
-		
+
 		char := "·"
 		if i > 0 {
 			prevIdx := (i - 1) * stride
-			if stride > 1 { prevIdx = i * stride - 1 }
+			if stride > 1 {
+				prevIdx = i*stride - 1
+			}
 			prevP := m.PriceHistory[prevIdx]
-			if p > prevP { char = "◜" }
-			if p < prevP { char = "◟" }
+			if p > prevP {
+				char = "◜"
+			}
+			if p < prevP {
+				char = "◟"
+			}
 		}
-		
+
 		// If ANY marker exists in this bucket (stride range), show it
 		bucketStart := i * stride
 		bucketEnd := (i + 1) * stride
@@ -827,7 +879,7 @@ func (m Model) renderChart() string {
 				break // Found a marker in this bucket, stop looking
 			}
 		}
-		
+
 		if rowIdx >= 0 && rowIdx < height {
 			grid[rowIdx][i] = char
 		}

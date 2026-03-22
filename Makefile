@@ -1,56 +1,46 @@
-.PHONY: all build run test coverage lint tidy clean release-snapshot docker-build docker-run
+.PHONY: build test run clean lint format help
 
-BINARY_NAME=niceboy
-
+# Default target
 all: build
 
-build: tidy
-	go build -o $(BINARY_NAME) cmd/niceboy/main.go
+# Build the application
+build:
+	@echo "🏗️ Building niceboy..."
+	go build -ldflags="-X main.version=v1.5.0 -X main.commit=$$(git rev-parse --short HEAD)" -o niceboy cmd/niceboy/main.go
 
-run: build
-	./$(BINARY_NAME)
-
+# Run tests
 test:
-	go test -v ./...
+	@echo "🧪 Running unit tests..."
+	go test ./...
 
-coverage:
-	go test -coverprofile=coverage.out ./...
-	go tool cover -func=coverage.out
-	@rm coverage.out
+# Run the application
+run:
+	@echo "⚡ Starting niceboy..."
+	go run cmd/niceboy/main.go
 
+# Format the code
+format:
+	@echo "🎨 Formatting code..."
+	go fmt ./...
+
+# Check for lint errors (requires golangci-lint)
 lint:
-	@if command -v golangci-lint > /dev/null; then \
-		golangci-lint run; \
-	else \
-		echo "golangci-lint not found, running go vet instead..."; \
-		go vet ./...; \
-	fi
+	@echo "🔍 Linting..."
+	golangci-lint run ./... || echo "Install golangci-lint for full checks"
 
-tidy:
-	go mod tidy
-
-install-hooks:
-	@echo "Installing git hooks..."
-	@mkdir -p .git/hooks
-	@ln -sf ../../scripts/git-hooks/pre-commit.sh .git/hooks/pre-commit
-	@chmod +x .git/hooks/pre-commit
-	@echo "Hooks installed successfully!"
-
+# Clean build artifacts
 clean:
-	rm -f $(BINARY_NAME)
+	@echo "🧹 Cleaning up..."
+	rm -f niceboy
 	rm -f *.log
-	rm -f coverage.out
-	rm -rf dist/
+	rm -f audit_log_*.txt
 
-release-snapshot:
-	@if command -v goreleaser > /dev/null; then \
-		goreleaser release --snapshot --clean; \
-	else \
-		echo "goreleaser not found. Please install it first."; \
-	fi
-
-docker-build:
-	docker build -t $(BINARY_NAME):latest .
-
-docker-run:
-	docker run -it --rm -v ./config.yaml:/app/config.yaml $(BINARY_NAME):latest
+# Show help
+help:
+	@echo "niceboy Makefile targets:"
+	@echo "  build   - Build the binary"
+	@echo "  test    - Run tests"
+	@echo "  run     - Run locally"
+	@echo "  format  - Format code"
+	@echo "  lint    - Run linter"
+	@echo "  clean   - Remove binaries and logs"

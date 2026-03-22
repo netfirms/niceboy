@@ -8,17 +8,18 @@ import (
 	"os"
 	"time"
 
+	"math"
 	"niceboy/internal/config"
 	"niceboy/internal/database"
 	"niceboy/internal/exchange"
 	"niceboy/internal/strategy"
 	"niceboy/internal/ui"
 	"strconv"
-	"math"
 
-	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/bubbletea"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"sync"
 )
 
 var (
@@ -102,10 +103,10 @@ func main() {
 		if err != nil {
 			log.Warn().Err(err).Str("symbol", symbol).Msg("Failed to fetch symbol info, using defaults")
 			symbolInfo = exchange.SymbolInfo{
-				Symbol: symbol,
-				BasePrecision: 8,
+				Symbol:         symbol,
+				BasePrecision:  8,
 				QuotePrecision: 2,
-				MinQty: 0.0001,
+				MinQty:         0.0001,
 			}
 		}
 
@@ -114,7 +115,7 @@ func main() {
 		if strategyName == "" {
 			strategyName = "sma_crossover" // Fallback
 		}
-		
+
 		strat, err := strategy.New(strategyName, cfg.StrategyParameters)
 		if err != nil {
 			log.Fatal().Err(err).Msg("Failed to initialize strategy")
@@ -134,7 +135,10 @@ func main() {
 		p := tea.NewProgram(m, tea.WithAltScreen())
 
 		// 5. Background Trading Loop (WebSocket & Execution)
+		var wg sync.WaitGroup
+		wg.Add(1)
 		go func(cmdCtx context.Context) {
+			defer wg.Done()
 			defer func() {
 				if r := recover(); r != nil {
 					p.Send(ui.AuditMsg(fmt.Sprintf("PANIC: %v", r)))
@@ -154,7 +158,7 @@ func main() {
 				p.Send(ui.PriceMsg(md))
 
 				signal := strat.OnMarketData(md)
-				
+
 				// Only send to UI if it's not WAIT, to avoid spam
 				if signal.Type != strategy.Wait {
 					p.Send(ui.SignalMsg(signal))
@@ -165,7 +169,7 @@ func main() {
 					if signal.Type == strategy.Sell {
 						side = exchange.Sell
 					}
-					
+
 					// Use configured order quantity
 					quantity := cfg.OrderQuantity
 					totalProfit := signal.Profit * quantity
@@ -173,7 +177,7 @@ func main() {
 					if cfg.DryRun {
 						p.Send(ui.AuditMsg(fmt.Sprintf("[DRY RUN] Would execute %s order for %.4f at Market (P&L: %.4f)", side, quantity, totalProfit)))
 						p.Send(ui.TradeExecutedMsg{})
-						
+
 						dbStore.SaveTrade(database.Trade{
 							Symbol:    symbol,
 							Side:      string(side),
@@ -194,7 +198,7 @@ func main() {
 						// Format with precision
 						fmtQty := truncateFloat(quantity, symbolInfo.BasePrecision)
 						fmtPrice := strconv.FormatFloat(protectedPrice, 'f', symbolInfo.QuotePrecision, 64)
-						
+
 						fQty, _ := strconv.ParseFloat(fmtQty, 64)
 						fPrice, _ := strconv.ParseFloat(fmtPrice, 64)
 
@@ -209,7 +213,7 @@ func main() {
 						}
 
 						p.Send(ui.AuditMsg(fmt.Sprintf("EXEC: Placing %s %s order (Qty: %s, Limit: %s)", side, exchange.Limit, fmtQty, fmtPrice)))
-						
+
 						execCtx, execCancel := context.WithTimeout(context.Background(), 5*time.Second)
 						err := exch.ExecuteOrder(execCtx, symbol, side, exchange.Limit, fQty, fPrice)
 						execCancel()
@@ -242,13 +246,15 @@ func main() {
 		}(ctx)
 
 		// 6. Background Account Polling Loop
+		wg.Add(1)
 		go func(cmdCtx context.Context) {
+			defer wg.Done()
 			ticker := time.NewTicker(2 * time.Second) // Increased speed for better cockpit experience
 			defer ticker.Stop()
-			
+
 			pollFunc := func() {
 				startTime := time.Now()
-				fetchCtx, fetchCancel := context.WithTimeout(cmdCtx, 8*time.Second) 
+				fetchCtx, fetchCancel := context.WithTimeout(cmdCtx, 8*time.Second)
 				defer fetchCancel()
 
 				if exchCfg.Key == "" || exchCfg.Secret == "" {
@@ -287,13 +293,13 @@ func main() {
 					btcSym = "THB_BTC"
 					ethSym = "THB_ETH"
 				}
-				if btcP, err := exch.GetPrice(fetchCtx, btcSym); err == nil { 
-					pulse["BTC"] = btcP 
+				if btcP, err := exch.GetPrice(fetchCtx, btcSym); err == nil {
+					pulse["BTC"] = btcP
 				} else {
 					p.Send(ui.AuditMsg(fmt.Sprintf("WARN: BTC pulse failed: %v", err)))
 				}
-				if ethP, err := exch.GetPrice(fetchCtx, ethSym); err == nil { 
-					pulse["ETH"] = ethP 
+				if ethP, err := exch.GetPrice(fetchCtx, ethSym); err == nil {
+					pulse["ETH"] = ethP
 				} else {
 					p.Send(ui.AuditMsg(fmt.Sprintf("WARN: ETH pulse failed: %v", err)))
 				}
@@ -324,6 +330,11 @@ func main() {
 		if _, err := p.Run(); err != nil {
 			log.Fatal().Err(err).Msg("Failed to run UI")
 		}
+
+		// Ensure all background workers clean up
+		cancel()
+		wg.Wait()
+		log.Info().Msg("niceboy shutdown gracefully")
 	}
 }
 

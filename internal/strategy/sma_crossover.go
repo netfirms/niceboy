@@ -131,7 +131,7 @@ func (s *SMACrossover) OnMarketData(data exchange.MarketData) Signal {
 
 	shortSMA := s.calculateSMA(s.shortPeriod)
 	longSMA := s.calculateSMA(s.longPeriod)
-	
+
 	var trendEMA float64
 	if s.trendPeriod > 0 {
 		trendEMA = s.calculateEMA(s.trendPeriod)
@@ -223,16 +223,22 @@ func (s *SMACrossover) OnMarketData(data exchange.MarketData) Signal {
 			s.entryPrice = data.Price
 			s.highestPrice = data.Price // Reset peak
 			s.lastSignal = Buy
-			
+
 			sig.Type = Buy
 			sig.EntryPrice = s.entryPrice
 			sig.Reason = "Short SMA crossed above Long SMA (Trend Confirmed)"
-			
+
 			// Recalculate guardrails for the BUY signal
-			if s.stopLossPct > 0 { sig.StopLoss = s.entryPrice * (1.0 - s.stopLossPct/100.0) }
-			if s.takeProfitPct > 0 { sig.TakeProfit = s.entryPrice * (1.0 + s.takeProfitPct/100.0) }
-			if s.trailingStopPct > 0 { sig.TrailingStop = s.highestPrice * (1.0 - s.trailingStopPct/100.0) }
-			
+			if s.stopLossPct > 0 {
+				sig.StopLoss = s.entryPrice * (1.0 - s.stopLossPct/100.0)
+			}
+			if s.takeProfitPct > 0 {
+				sig.TakeProfit = s.entryPrice * (1.0 + s.takeProfitPct/100.0)
+			}
+			if s.trailingStopPct > 0 {
+				sig.TrailingStop = s.highestPrice * (1.0 - s.trailingStopPct/100.0)
+			}
+
 			return sig
 		}
 	} else if shortSMA < longSMA {
@@ -290,7 +296,7 @@ func (s *SMACrossover) calculateSMA(period int) float64 {
 func (s *SMACrossover) calculateEMA(period int) float64 {
 	alpha := 2.0 / (float64(period) + 1.0)
 	ema := s.prices[len(s.prices)-period] // Start with SMA equivalent or first value
-	
+
 	// For better accuracy, we'd want a longer history, but let's approximate
 	// by iterating through the available period buffer.
 	subset := s.prices[len(s.prices)-period:]

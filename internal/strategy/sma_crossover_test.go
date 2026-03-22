@@ -49,8 +49,8 @@ func TestSMACrossover_OnMarketData(t *testing.T) {
 
 func TestSMACrossover_StopLoss(t *testing.T) {
 	strat, _ := New("sma_crossover", map[string]interface{}{
-		"short_period": 2,
-		"long_period":  4,
+		"short_period":  2,
+		"long_period":   4,
 		"stop_loss_pct": 5.0,
 	})
 
@@ -58,7 +58,7 @@ func TestSMACrossover_StopLoss(t *testing.T) {
 	strat.OnMarketData(exchange.MarketData{Price: 100})
 	strat.OnMarketData(exchange.MarketData{Price: 101})
 	strat.OnMarketData(exchange.MarketData{Price: 102})
-	
+
 	// Trigger BUY at 110
 	sig := strat.OnMarketData(exchange.MarketData{Price: 110})
 	if sig.Type != Buy {
@@ -77,8 +77,8 @@ func TestSMACrossover_StopLoss(t *testing.T) {
 
 func TestSMACrossover_TakeProfit(t *testing.T) {
 	strat, _ := New("sma_crossover", map[string]interface{}{
-		"short_period": 2,
-		"long_period":  4,
+		"short_period":    2,
+		"long_period":     4,
 		"take_profit_pct": 10.0,
 	})
 
@@ -86,7 +86,7 @@ func TestSMACrossover_TakeProfit(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		strat.OnMarketData(exchange.MarketData{Price: 100})
 	}
-	
+
 	// Buy at 110
 	sigBuy := strat.OnMarketData(exchange.MarketData{Price: 110}) // short > long
 	if sigBuy.Type != Buy {
@@ -184,14 +184,14 @@ func TestSMACrossover_TrendFilter(t *testing.T) {
 	// But Trend EMA will be around ~195
 	strat.OnMarketData(exchange.MarketData{Price: 98})
 	strat.OnMarketData(exchange.MarketData{Price: 99})
-	
+
 	sig := strat.OnMarketData(exchange.MarketData{Price: 105}) // short (102) > long (100)
-	
+
 	// Crossover happens, but Price (105) < Trend EMA (~190+)
 	if sig.Type == Buy {
 		t.Errorf("expected signal to be SUPPRESSED by trend filter, but got BUY. Reason: %s", sig.Reason)
 	}
-	
+
 	if sig.Type != Wait {
 		t.Errorf("expected WAIT (suppressed), got %v", sig.Type)
 	}
@@ -203,11 +203,11 @@ func TestSMACrossover_TrendFilter(t *testing.T) {
 	// Force a Sell signal first to reset lastSignal
 	strat.OnMarketData(exchange.MarketData{Price: 50})
 	strat.OnMarketData(exchange.MarketData{Price: 40})
-	
+
 	// Now Crossover UP while price (310) > Trend EMA (~300)
 	strat.OnMarketData(exchange.MarketData{Price: 305})
 	sig = strat.OnMarketData(exchange.MarketData{Price: 310})
-	
+
 	if sig.Type != Buy {
 		t.Errorf("expected BUY when above trend, got %v. Reason: %s", sig.Type, sig.Reason)
 	}

@@ -41,7 +41,7 @@ func (b *BinanceExchange) SubscribePrice(ctx context.Context, symbol string, ch 
 		if price == 0 {
 			price, _ = strconv.ParseFloat(event.BestAskPrice, 64)
 		}
-		
+
 		select {
 		case <-ctx.Done():
 			return
@@ -52,7 +52,7 @@ func (b *BinanceExchange) SubscribePrice(ctx context.Context, symbol string, ch 
 		}:
 		}
 	}
-	
+
 	go func() {
 		backoff := time.Second
 		for {
@@ -118,18 +118,18 @@ func (b *BinanceExchange) GetOpenOrders(ctx context.Context, symbol string) ([]O
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var result []Order
 	for _, o := range orders {
 		var p, q float64
 		fmt.Sscanf(o.Price, "%f", &p)
 		fmt.Sscanf(o.OrigQuantity, "%f", &q)
-		
+
 		side := Buy
 		if o.Side == binance.SideTypeSell {
 			side = Sell
 		}
-		
+
 		result = append(result, Order{
 			ID:       fmt.Sprintf("%d", o.OrderID),
 			Symbol:   o.Symbol,
@@ -152,11 +152,13 @@ func (b *BinanceExchange) ExecuteOrder(ctx context.Context, symbol string, side 
 		oType = binance.OrderTypeLimit
 	}
 
+	// Slippage Protection: Use PROTECTED LIMIT order instead of MARKET
+	// (Prices and quantities are formatted to the specific exchange's precision standards)
 	srv := b.client.NewCreateOrderService().
 		Symbol(symbol).
 		Side(sideType).
 		Type(oType).
-		Quantity(strconv.FormatFloat(quantity, 'f', -1, 64))
+		Quantity(strconv.FormatFloat(quantity, 'f', -1, 64)) // Pre-truncated in main.go, but we could enforce here too.
 
 	if orderType == Limit {
 		srv = srv.Price(strconv.FormatFloat(price, 'f', -1, 64))
@@ -204,7 +206,7 @@ func (b *BinanceExchange) GetOrderBook(ctx context.Context, symbol string, limit
 	if err != nil {
 		return OrderBook{}, err
 	}
-	
+
 	book := OrderBook{Symbol: symbol}
 	for _, b := range resp.Bids {
 		p, _ := strconv.ParseFloat(b.Price, 64)

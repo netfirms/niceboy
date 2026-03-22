@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/bubbles/viewport"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 func TestNewModel(t *testing.T) {
@@ -32,7 +32,7 @@ func TestNewModel(t *testing.T) {
 func TestModelUpdates(t *testing.T) {
 	m := NewModel("bitkub", "THB_BTC", false, nil, "sma_crossover", nil, 0.01, "dev", "test")
 	m.Viewport = viewport.New(100, 20)
-	
+
 	// Test Price Update
 	newModel, _ := m.Update(PriceMsg(exchange.MarketData{Price: 50000.0}))
 	m = newModel.(Model)
@@ -81,11 +81,11 @@ func TestViewRendering(t *testing.T) {
 	usdtIdx := strings.Index(view, "USDT:")
 	btcIdx := strings.Index(view, "BTC:")
 	ethIdx := strings.Index(view, "ETH:")
-	
+
 	if usdtIdx == -1 || btcIdx == -1 || ethIdx == -1 {
 		t.Error("One or more balances missing from View")
 	}
-	
+
 	if !(usdtIdx < btcIdx && btcIdx < ethIdx) {
 		t.Errorf("Balances not prioritized correctly in View. Indices: USDT=%d, BTC=%d, ETH=%d", usdtIdx, btcIdx, ethIdx)
 	}

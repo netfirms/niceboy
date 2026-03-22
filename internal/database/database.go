@@ -4,9 +4,9 @@ import (
 	"database/sql"
 	"encoding/csv"
 	"fmt"
+	_ "modernc.org/sqlite"
 	"os"
 	"strconv"
-	_ "modernc.org/sqlite"
 	"time"
 )
 
@@ -152,12 +152,13 @@ func (s *SQLiteStore) GetStats() (TradingStats, error) {
 	var stats TradingStats
 
 	// We consider a "trade" as a completed SELL action
+	// Optimized query using conditional aggregation instead of nested subquery
 	query := `
 		SELECT 
 			COUNT(*), 
 			IFNULL(SUM(profit), 0), 
 			IFNULL(AVG(profit), 0),
-			(SELECT COUNT(*) FROM trades WHERE side = 'SELL' AND profit > 0)
+			IFNULL(SUM(CASE WHEN profit > 0 THEN 1 ELSE 0 END), 0)
 		FROM trades 
 		WHERE side = 'SELL'
 	`

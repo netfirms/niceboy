@@ -1,10 +1,10 @@
 package config
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"strings"
-	"bufio"
 
 	"gopkg.in/yaml.v3"
 )
@@ -32,11 +32,11 @@ func LoadConfig(path string) (*Config, error) {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return &Config{
 			ActiveExchange: "binance",
-			Strategy:      "sma_crossover",
-			DryRun:        false,
-			DatabasePath:  "niceboy.db",
-			OrderQuantity: 0.01,
-			SlippagePct:   0.5, // 0.5% default
+			Strategy:       "sma_crossover",
+			DryRun:         false,
+			DatabasePath:   "niceboy.db",
+			OrderQuantity:  0.01,
+			SlippagePct:    0.5, // 0.5% default
 			StrategyParameters: map[string]interface{}{
 				"short_period": 5,
 				"long_period":  10,

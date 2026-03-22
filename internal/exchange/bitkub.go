@@ -101,7 +101,7 @@ func (b *BitkubExchange) GetPrice(ctx context.Context, symbol string) (float64, 
 			Last float64 `json:"last"`
 		} `json:"result"`
 	}
-	
+
 	var directData []struct {
 		Last float64 `json:"last"`
 	}
@@ -188,6 +188,10 @@ func (b *BitkubExchange) ExecuteOrder(ctx context.Context, symbol string, side O
 	}
 
 	normSym := b.normalizeSymbol(symbol)
+	
+	// Ensure numeric precision is respected in the JSON payload
+	// Although Bitkub accepts floats, many institutional APIs prefer strings or specific decimal counts.
+	// We'll use the provided floats directly but they are pre-formatted in main.go.
 	payload := map[string]interface{}{
 		"sym":  normSym,
 		"amt":  quantity,
@@ -204,7 +208,7 @@ func (b *BitkubExchange) ExecuteOrder(ctx context.Context, symbol string, side O
 	if err != nil {
 		ts = time.Now().UnixNano() / 1e6 // Fallback
 	}
-	
+
 	sigStr := fmt.Sprintf("%dPOST%s%s", ts, endpoint, string(payloadBytes))
 
 	mac := hmac.New(sha256.New, []byte(b.secret))
@@ -246,7 +250,7 @@ func (b *BitkubExchange) ExecuteOrder(ctx context.Context, symbol string, side O
 
 func (b *BitkubExchange) GetBalances(ctx context.Context) (map[string]float64, error) {
 	endpoint := "/api/v3/market/balances"
-	
+
 	ts, err := b.getServerTime()
 	if err != nil {
 		ts = time.Now().UnixNano() / 1e6 // Fallback
@@ -306,12 +310,12 @@ func (b *BitkubExchange) GetOpenOrders(ctx context.Context, symbol string) ([]Or
 	endpoint := "/api/v3/market/my-open-orders"
 	normSym := b.normalizeSymbol(symbol)
 	query := "sym=" + normSym
-	
+
 	ts, err := b.getServerTime()
 	if err != nil {
 		ts = time.Now().UnixNano() / 1e6 // Fallback
 	}
-	
+
 	// Bitkub V3 GET signature often includes the '?' in the payload.
 	// But let's try to be very precise.
 	sigStr := fmt.Sprintf("%dGET%s?%s", ts, endpoint, query)
@@ -342,7 +346,7 @@ func (b *BitkubExchange) GetOpenOrders(ctx context.Context, symbol string) ([]Or
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("bitkub api failed, status: %d, body: %s", resp.StatusCode, string(body))
 	}
-	
+
 	var envelope struct {
 		Error  int             `json:"error"`
 		Result json.RawMessage `json:"result"`
@@ -361,7 +365,7 @@ func (b *BitkubExchange) GetOpenOrders(ctx context.Context, symbol string) ([]Or
 	}
 
 	var res []Order
-	
+
 	// Case 1: Result is an array []
 	if trimmed[0] == '[' {
 		var orders []struct {
@@ -512,13 +516,13 @@ func (b *BitkubExchange) GetOrderBook(ctx context.Context, symbol string, limit 
 
 	// Bitkub V3 can return either direct depth object or wrapped in an envelope
 	var envelope struct {
-		Error int `json:"error"`
+		Error  int `json:"error"`
 		Result struct {
 			Asks [][]interface{} `json:"asks"`
 			Bids [][]interface{} `json:"bids"`
 		} `json:"result"`
 	}
-	
+
 	var directData struct {
 		Asks [][]interface{} `json:"asks"`
 		Bids [][]interface{} `json:"bids"`
