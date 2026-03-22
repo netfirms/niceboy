@@ -150,11 +150,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case PriceMsg:
 		m.Price = msg.Price
 		m.LastPoll = time.Unix(msg.Time/1000, 0)
-		m.Status = "Connected"
-		
-		// Update price history (last 50 points)
+		// Update price history (last 500 points)
 		m.PriceHistory = append(m.PriceHistory, m.Price)
-		if len(m.PriceHistory) > 50 {
+		if len(m.PriceHistory) > 500 {
 			m.PriceHistory = m.PriceHistory[1:]
 			// Shift markers
 			newMarkers := make(map[int]string)
@@ -716,7 +714,11 @@ func (m *Model) updateViewportContent() {
 }
 
 func (m Model) renderChart() string {
-	width := 50
+	// Dynamically calculate width based on terminal size, with bounds
+	width := m.Width - 80 
+	if width < 50 { width = 50 }
+	if width > 120 { width = 120 } // Cap visual width to prevent extreme stretching
+	
 	height := 8
 	if len(m.PriceHistory) < 2 {
 		return boxStyle.Width(width + 2).Height(height).Render("Waiting for data...")
