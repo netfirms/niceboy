@@ -21,11 +21,23 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+)
+
 func main() {
 	// Parse CLI flags for multi-instance support
 	configPath := flag.String("config", "config.yaml", "Path to configuration file")
 	logPath := flag.String("log", "niceboy.log", "Path to log file")
+	showVersion := flag.Bool("version", false, "Show version information")
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Printf("niceboy %s (commit: %s, date: %s)\n", version, commit, date)
+		return
+	}
 
 	// Initialize structured logging (File only to prevent TUI rendering corruption)
 	logFile, err := os.OpenFile(*logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
