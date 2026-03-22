@@ -133,7 +133,6 @@ func (b *BitkubExchange) ExecuteOrder(ctx context.Context, symbol string, side O
 		"amt":  quantity, // Bitkub 'amt' definition depends on buy/sell but we pass it generically.
 		"rat":  price,
 		"type": typ,
-		"ts":   time.Now().Unix(),
 	}
 
 	payloadBytes, err := json.Marshal(payload)
@@ -141,14 +140,14 @@ func (b *BitkubExchange) ExecuteOrder(ctx context.Context, symbol string, side O
 		return err
 	}
 
+	ts := time.Now().UnixNano() / 1e6
+	sigStr := fmt.Sprintf("%dPOST%s%s", ts, endpoint, string(payloadBytes))
+
 	mac := hmac.New(sha256.New, []byte(b.secret))
-	mac.Write(payloadBytes)
+	mac.Write([]byte(sigStr))
 	sig := hex.EncodeToString(mac.Sum(nil))
 
-	payload["sig"] = sig
-	finalPayload, _ := json.Marshal(payload)
-
-	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(finalPayload))
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(payloadBytes))
 	if err != nil {
 		return err
 	}
@@ -156,6 +155,8 @@ func (b *BitkubExchange) ExecuteOrder(ctx context.Context, symbol string, side O
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-BTK-APIKEY", b.apiKey)
+	req.Header.Set("X-BTK-TIMESTAMP", fmt.Sprintf("%d", ts))
+	req.Header.Set("X-BTK-SIGN", sig)
 
 	resp, err := b.client.Do(req)
 	if err != nil {
