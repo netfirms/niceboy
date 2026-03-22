@@ -36,10 +36,11 @@ sequenceDiagram
 
 ## 🛠️ Technology Stack
 
-- **Language**: [Go 1.24+](https://go.dev/) (Chosen for its official SDK support and efficient concurrency).
-- **Logging**: [zerolog](https://github.com/rs/zerolog) (High-performance, structured JSON, persistent audit trail).
-- **Exchange Integration**: Official SDKs for Binance and Bitkub via a unified runtime adapter.
-- **UI Framework**: [Bubble Tea](https://github.com/charmbracelet/bubbletea) (Terminal User Interface).
+- **Language**: [Go 1.24+](https://go.dev/) (Statically-linked, high-performance binary).
+- **Interface**: [Bubble Tea](https://github.com/charmbracelet/bubbletea) & [Lipgloss](https://github.com/charmbracelet/lipgloss) (Tactical Tabbed TUI).
+- **Persistence**: [SQLite 3](https://sqlite.org/) (High-concurrency WAL-mode for trade history).
+- **Logging**: [zerolog](https://github.com/rs/zerolog) (Structured JSON + Human-readable audit trails).
+- **Distribution**: [GoReleaser](https://goreleaser.com/) (Automated Multi-Arch & Docker builds).
 
 ## 🧭 Choose Your Journey
 
