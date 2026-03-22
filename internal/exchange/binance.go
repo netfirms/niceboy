@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/adshao/go-binance/v2"
@@ -195,20 +196,20 @@ func (b *BinanceExchange) GetSymbolInfo(ctx context.Context, symbol string) (Sym
 	s := resp.Symbols[0]
 
 	info := SymbolInfo{
-		Symbol:         s.Symbol,
-		BaseAsset:      s.BaseAsset,
-		QuoteAsset:     s.QuoteAsset,
-		BasePrecision:  s.BaseAssetPrecision,
-		QuotePrecision: s.QuotePrecision,
+		Symbol:     s.Symbol,
+		BaseAsset:  s.BaseAsset,
+		QuoteAsset: s.QuoteAsset,
 	}
 
 	for _, f := range s.Filters {
 		if f["filterType"] == "PRICE_FILTER" {
 			info.TickSize, _ = strconv.ParseFloat(f["tickSize"].(string), 64)
+			info.QuotePrecision = precisionFromStep(info.TickSize)
 		}
 		if f["filterType"] == "LOT_SIZE" {
 			info.MinQty, _ = strconv.ParseFloat(f["minQty"].(string), 64)
 			info.StepSize, _ = strconv.ParseFloat(f["stepSize"].(string), 64)
+			info.BasePrecision = precisionFromStep(info.StepSize)
 		}
 		if f["filterType"] == "NOTIONAL" {
 			info.MinNotional, _ = strconv.ParseFloat(f["minNotional"].(string), 64)
@@ -216,6 +217,17 @@ func (b *BinanceExchange) GetSymbolInfo(ctx context.Context, symbol string) (Sym
 	}
 
 	return info, nil
+}
+
+func precisionFromStep(step float64) int {
+	if step <= 0 {
+		return 8
+	}
+	s := strconv.FormatFloat(step, 'f', -1, 64)
+	if !strings.Contains(s, ".") {
+		return 0
+	}
+	return len(s) - strings.Index(s, ".") - 1
 }
 func (b *BinanceExchange) GetOrderBook(ctx context.Context, symbol string, limit int) (OrderBook, error) {
 	resp, err := b.client.NewDepthService().Symbol(symbol).Limit(limit).Do(ctx)
