@@ -24,7 +24,7 @@ sequenceDiagram
 ## ✨ Features
 
 - **🚀 Low Footprint**: Optimized Go core with sub-10MB memory usage.
-- **🖥️ Console-First TUI**: Interactive terminal interface powered by Bubble Tea.
+- **🖥️ Console-First TUI**: Interactive terminal interface powered by Bubble Tea and `lipgloss`, featuring boxed layouts, real-time metrics, and live execution tracking.
 - **🔌 Modular Architecture**: Plug-and-play strategies and unified exchange adapters.
 - **🛡️ Secure & Resilient**: Local-first security with recovery-guarded trading loops.
 - **📊 Structured Auditing**: Dual-output logging (Console + JSON) for full traceability.

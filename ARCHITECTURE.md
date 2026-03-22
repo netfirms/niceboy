@@ -7,7 +7,7 @@
 `niceboy` is architected to balance institutional-grade performance with individual ease-of-use.
 
 ### 1. 👫 User Friendly (Accessibility)
-- **Interactive TUI**: Powered by **Bubble Tea**, providing a rich, responsive terminal dashboard that rivals GUI applications without the overhead.
+- **Interactive TUI**: Powered by **Bubble Tea** and **Lipgloss**, providing a rich, responsive terminal dashboard. It features structured, bordered box layouts that clearly separate the Header (Exchange/Symbol), Live Stats (Price/Trades), Strategy Signals, and an interactive Audit Log viewport.
 - **Intuitive Config**: Unified YAML structure with strict validation, making it easy to swap exchanges or strategies in seconds.
 - **Clear Feedback**: Human-readable console logs synchronized with high-precision audit trails.
 

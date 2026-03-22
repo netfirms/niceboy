@@ -17,15 +17,19 @@ import (
 type PriceMsg exchange.MarketData
 type SignalMsg strategy.Signal
 type AuditMsg string
+type TradeExecutedMsg struct{}
 
 // Styles
 var (
 	headerStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color("#00ffd5")).
-			Background(lipgloss.Color("#1a1a1a")).
-			Padding(0, 1).
-			MarginBottom(1)
+			Padding(1, 2)
+
+	boxStyle = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("#333333")).
+			Padding(0, 1)
 
 	priceStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#ffcc00")).
@@ -48,21 +52,24 @@ var (
 )
 
 type Model struct {
-	Symbol   string
-	Price    float64
-	Signal   strategy.Signal
-	LastPoll time.Time
-	Status   string
+	ExchangeName string
+	Symbol       string
+	Price        float64
+	Signal       strategy.Signal
+	LastPoll     time.Time
+	Status       string
+	TradeCount   int
 
 	AuditLog []string
 	Viewport viewport.Model
 	Ready    bool
 }
 
-func NewModel(symbol string) Model {
+func NewModel(exchangeName, symbol string) Model {
 	return Model{
-		Symbol: symbol,
-		Status: "Initializing...",
+		ExchangeName: exchangeName,
+		Symbol:       symbol,
+		Status:       "Initializing...",
 	}
 }
 
@@ -75,7 +82,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		headerHeight := 5
+		headerHeight := 10 // Increased to account for the new boxes
 		footerHeight := 1
 		if !m.Ready {
 			m.Viewport = viewport.New(msg.Width, msg.Height-headerHeight-footerHeight)
@@ -100,6 +107,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case AuditMsg:
 		m.addAudit(string(msg))
+
+	case TradeExecutedMsg:
+		m.TradeCount++
 
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -126,15 +136,20 @@ func (m Model) View() string {
 		return "\n  Initializing dashboard..."
 	}
 
-	// Header
-	header := headerStyle.Render(fmt.Sprintf(" ⚡ niceboy | %s ", m.Symbol))
-	info := fmt.Sprintf(" Status: %s | Last Price: %s | Time: %s ", 
-		m.Status, 
-		priceStyle.Render(fmt.Sprintf("%.2f", m.Price)),
-		m.LastPoll.Format("15:04:05"))
+	// 1. Header Area
+	title := headerStyle.Render(fmt.Sprintf("⚡ niceboy ⚡\n%s : %s", strings.ToUpper(m.ExchangeName), m.Symbol))
 
-	// Signal Box
-	signalLabel := " [ SIGNAL: "
+	// 2. Stats Box
+	statsContent := fmt.Sprintf(
+		"Status:  %s\nPrice:   %s\nTrades:  %d\nUpdated: %s",
+		m.Status,
+		priceStyle.Render(fmt.Sprintf("$%.4f", m.Price)),
+		m.TradeCount,
+		m.LastPoll.Format("15:04:05.000"),
+	)
+	statsBox := boxStyle.Render(statsContent)
+
+	// 3. Signal Box
 	signalStr := m.Signal.Type.String()
 	var signalView string
 	switch m.Signal.Type {
@@ -145,13 +160,24 @@ func (m Model) View() string {
 	default:
 		signalView = waitStyle.Render(signalStr)
 	}
-	signalBox := fmt.Sprintf("%s%s ] %s", signalLabel, signalView, m.Signal.Reason)
+	
+	signalContent := fmt.Sprintf(
+		"Current Signal: %s\nStrategy Logic: %s",
+		signalView,
+		m.Signal.Reason,
+	)
+	if m.Signal.Reason == "" {
+		signalContent = fmt.Sprintf("Current Signal: %s\nStrategy Logic: Collecting Price Data...", signalView)
+	}
 
-	// Build final view
-	return fmt.Sprintf("%s\n%s\n\n%s\n\n%s\n%s", 
-		header, 
-		info, 
-		signalBox,
+	signalBox := boxStyle.Render(signalContent)
+
+	// Layout the Header and top boxes
+	topSection := lipgloss.JoinHorizontal(lipgloss.Center, title, statsBox, signalBox)
+
+	// 4. Build final view
+	return fmt.Sprintf("%s\n\n%s\n%s", 
+		topSection,
 		m.Viewport.View(),
 		auditStyle.Render(" [q:quit] "))
 }
