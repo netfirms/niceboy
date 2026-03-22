@@ -150,9 +150,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case PriceMsg:
 		m.Price = msg.Price
 		m.LastPoll = time.Unix(msg.Time/1000, 0)
-		// Update price history (last 500 points)
+		// Update price history (last 5000 points)
 		m.PriceHistory = append(m.PriceHistory, m.Price)
-		if len(m.PriceHistory) > 500 {
+		if len(m.PriceHistory) > 5000 {
 			m.PriceHistory = m.PriceHistory[1:]
 			// Shift markers
 			newMarkers := make(map[int]string)
@@ -745,34 +745,51 @@ func (m Model) renderChart() string {
 		}
 	}
 
-	// 3. Plot Points
+	// 3. Plot Points (with downsampling)
 	historyLen := len(m.PriceHistory)
-	startIdx := 0
+	stride := 1
 	if historyLen > width {
-		startIdx = historyLen - width
+		stride = historyLen / width
 	}
 
-	for i := 0; i < width && (startIdx+i) < historyLen; i++ {
-		p := m.PriceHistory[startIdx+i]
+	for i := 0; i < width; i++ {
+		// Calculate index in history for this column
+		histIdx := i * stride
+		if stride > 1 {
+			// When downsampling, we take the last point in the bucket to represent the "current" state
+			histIdx = (i + 1) * stride - 1
+		}
+		
+		if histIdx >= historyLen {
+			if i == 0 { continue }
+			break 
+		}
+
+		p := m.PriceHistory[histIdx]
 		// Normalize P to [0, height-1]
 		row := int(((p - minP) / (maxP - minP)) * float64(height-1))
-		// Grid row 0 is TOP, so we must invert
 		rowIdx := (height - 1) - row
 		
 		char := "·"
 		if i > 0 {
-			prevP := m.PriceHistory[startIdx+i-1]
+			prevIdx := (i - 1) * stride
+			if stride > 1 { prevIdx = i * stride - 1 }
+			prevP := m.PriceHistory[prevIdx]
 			if p > prevP { char = "◜" }
 			if p < prevP { char = "◟" }
 		}
 		
-		// If marker exists at this index
-		if mark, ok := m.TradeMarkers[startIdx+i]; ok {
-			char = mark
-			if mark == "B" {
-				char = lipgloss.NewStyle().Foreground(lipgloss.Color("#00ff00")).Bold(true).Render("B")
-			} else {
-				char = lipgloss.NewStyle().Foreground(lipgloss.Color("#ff0000")).Bold(true).Render("S")
+		// If ANY marker exists in this bucket (stride range), show it
+		bucketStart := i * stride
+		bucketEnd := (i + 1) * stride
+		for j := bucketStart; j < bucketEnd && j < historyLen; j++ {
+			if mark, ok := m.TradeMarkers[j]; ok {
+				if mark == "B" {
+					char = lipgloss.NewStyle().Foreground(lipgloss.Color("#00ff00")).Bold(true).Render("B")
+				} else {
+					char = lipgloss.NewStyle().Foreground(lipgloss.Color("#ff0000")).Bold(true).Render("S")
+				}
+				break // Found a marker in this bucket, stop looking
 			}
 		}
 		
