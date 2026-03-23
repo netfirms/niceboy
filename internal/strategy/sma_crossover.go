@@ -110,6 +110,7 @@ type SMACrossover struct {
 	inPosition          bool
 	lastSignal          SignalType
 	currentConfirmTicks int
+	currentExitTicks    int
 }
 
 func (s *SMACrossover) GetName() string {
@@ -177,13 +178,22 @@ func (s *SMACrossover) OnMarketData(data exchange.MarketData) Signal {
 		if s.trailingStopPct > 0 {
 			threshold := s.highestPrice * (1.0 - s.trailingStopPct/100.0)
 			if data.Price <= threshold {
-				profit := data.Price - s.entryPrice
-				s.inPosition = false
-				s.lastSignal = Sell
-				sig.Type = Sell
-				sig.Profit = profit
-				sig.Reason = fmt.Sprintf("TRAILING STOP hit at %.2f (Peak: %.2f)", data.Price, s.highestPrice)
-				return sig
+				s.currentExitTicks++
+				if s.currentExitTicks >= s.confirmTicks {
+					profit := data.Price - s.entryPrice
+					s.inPosition = false
+					s.lastSignal = Sell
+					s.currentExitTicks = 0
+					sig.Type = Sell
+					sig.Profit = profit
+					sig.Reason = fmt.Sprintf("TRAILING STOP confirmed after %d ticks at %.2f (Peak: %.2f)", s.confirmTicks, data.Price, s.highestPrice)
+					return sig
+				}
+				// Don't return yet, allow other checks but we are "counting down"
+			} else {
+				// Reset exit ticks if price recovers above trailing threshold
+				// This is only for trailing stop; stop loss might be different but usually we reset if it bounces
+				s.currentExitTicks = 0
 			}
 		}
 
@@ -191,13 +201,18 @@ func (s *SMACrossover) OnMarketData(data exchange.MarketData) Signal {
 		if s.stopLossPct > 0 {
 			threshold := s.entryPrice * (1.0 - s.stopLossPct/100.0)
 			if data.Price <= threshold {
-				profit := data.Price - s.entryPrice
-				s.inPosition = false
-				s.lastSignal = Sell
-				sig.Type = Sell
-				sig.Profit = profit
-				sig.Reason = fmt.Sprintf("STOP LOSS hit at %.2f (Entry: %.2f)", data.Price, s.entryPrice)
-				return sig
+				// We reuse currentExitTicks for any stop trigger for simplicity
+				s.currentExitTicks++
+				if s.currentExitTicks >= s.confirmTicks {
+					profit := data.Price - s.entryPrice
+					s.inPosition = false
+					s.lastSignal = Sell
+					s.currentExitTicks = 0
+					sig.Type = Sell
+					sig.Profit = profit
+					sig.Reason = fmt.Sprintf("STOP LOSS confirmed after %d ticks at %.2f (Entry: %.2f)", s.confirmTicks, data.Price, s.entryPrice)
+					return sig
+				}
 			}
 		}
 

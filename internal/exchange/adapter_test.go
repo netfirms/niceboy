@@ -123,7 +123,7 @@ func TestBitkubExchange_SubscribePrice(t *testing.T) {
 			return
 		}
 		defer c.Close()
-		_ = c.WriteMessage(websocket.TextMessage, []byte(`{"last": 2000000.0}`))
+		_ = c.WriteMessage(websocket.TextMessage, []byte(`{"stream":"market.ticker.thb_btc","data":{"last": 2000000.0}}`))
 	}))
 	defer server.Close()
 

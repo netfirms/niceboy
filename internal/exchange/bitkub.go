@@ -114,13 +114,11 @@ func (b *BitkubExchange) GetPrice(ctx context.Context, symbol string) (float64, 
 
 	return 0, fmt.Errorf("failed to parse Bitkub ticker response: %s", string(body))
 }
-
 func (b *BitkubExchange) SubscribePrice(ctx context.Context, symbol string, ch chan<- MarketData) error {
-	// WebSocket uniquely still uses the quote_base format (e.g. thb_btc)
-	// while REST V3 uses base_quote (e.g. btc_thb).
-	normSym := strings.ToLower(symbol)
-	wsURL := fmt.Sprintf("%s/market.ticker.%s", b.BaseWSURL, normSym)
-	header := http.Header{}
+	// WS URL is just the base
+	wsURL := b.BaseWSURL
+	// Bitkub WS topic uses quote_base (e.g. thb_btc)
+	topic := fmt.Sprintf("market.ticker.%s", strings.ToLower(symbol))
 
 	go func() {
 		backoff := time.Second
@@ -129,7 +127,7 @@ func (b *BitkubExchange) SubscribePrice(ctx context.Context, symbol string, ch c
 			case <-ctx.Done():
 				return
 			default:
-				c, _, err := websocket.DefaultDialer.DialContext(ctx, wsURL, header)
+				c, _, err := websocket.DefaultDialer.DialContext(ctx, wsURL, nil)
 				if err != nil {
 					time.Sleep(backoff)
 					if backoff < 30*time.Second {
@@ -141,6 +139,16 @@ func (b *BitkubExchange) SubscribePrice(ctx context.Context, symbol string, ch c
 				// Reset backoff on successful connection
 				backoff = time.Second
 
+				// Subscribe via message
+				subMsg := map[string]interface{}{
+					"event":   "subscribe",
+					"streams": []string{topic},
+				}
+				if err := c.WriteJSON(subMsg); err != nil {
+					c.Close()
+					continue
+				}
+
 				for {
 					_, message, err := c.ReadMessage()
 					if err != nil {
@@ -148,14 +156,17 @@ func (b *BitkubExchange) SubscribePrice(ctx context.Context, symbol string, ch c
 						break // Trigger reconnect
 					}
 
-					var data struct {
-						Last float64 `json:"last"`
+					var raw struct {
+						Stream string `json:"stream"`
+						Data   struct {
+							Last float64 `json:"last"`
+						} `json:"data"`
 					}
-					if err := json.Unmarshal(message, &data); err == nil && data.Last > 0 {
+					if err := json.Unmarshal(message, &raw); err == nil && raw.Data.Last > 0 {
 						select {
 						case ch <- MarketData{
 							Symbol: symbol,
-							Price:  data.Last,
+							Price:  raw.Data.Last,
 							Time:   time.Now().UnixNano() / 1e6,
 						}:
 						case <-ctx.Done():
@@ -206,10 +217,14 @@ func (b *BitkubExchange) ExecuteOrder(ctx context.Context, symbol string, side O
 
 	ts, err := b.getServerTime()
 	if err != nil {
-		ts = time.Now().UnixNano() / 1e6 // Fallback
+		ts = time.Now().UnixMilli() // Ensure ms
 	}
 
-	sigStr := fmt.Sprintf("%dPOST%s%s", ts, endpoint, string(payloadBytes))
+	sigBody := ""
+	if len(payloadBytes) > 0 {
+		sigBody = string(payloadBytes)
+	}
+	sigStr := fmt.Sprintf("%dPOST%s%s", ts, endpoint, sigBody)
 
 	mac := hmac.New(sha256.New, []byte(b.secret))
 	mac.Write([]byte(sigStr))
@@ -253,8 +268,9 @@ func (b *BitkubExchange) GetBalances(ctx context.Context) (map[string]float64, e
 
 	ts, err := b.getServerTime()
 	if err != nil {
-		ts = time.Now().UnixNano() / 1e6 // Fallback
+		ts = time.Now().UnixMilli()
 	}
+	// V3 spec requires timestamp + method + endpoint + payload (even if empty)
 	sigStr := fmt.Sprintf("%dPOST%s", ts, endpoint)
 
 	mac := hmac.New(sha256.New, []byte(b.secret))
