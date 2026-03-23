@@ -111,6 +111,10 @@ type SMACrossover struct {
 	lastSignal          SignalType
 	currentConfirmTicks int
 	currentExitTicks    int
+
+	// Bollinger Bands
+	bbPeriod int
+	bbStdDev float64
 }
 
 func (s *SMACrossover) GetName() string {
@@ -282,6 +286,16 @@ func (s *SMACrossover) OnMarketData(data exchange.MarketData) Signal {
 				return sig
 			}
 
+			// 4. Bollinger Band Extreme Filter
+			if s.bbPeriod > 0 {
+				_, upper, _ := s.calculateBollingerBands(s.bbPeriod, s.bbStdDev)
+				if upper > 0 && data.Price > upper*0.98 { // Near upper band
+					sig.Type = Wait
+					sig.Reason = fmt.Sprintf("SMA Cross UP ignored: Price at Bollinger Upper Extreme (%.2f)", data.Price)
+					return sig
+				}
+			}
+
 			s.inPosition = true
 			s.entryPrice = data.Price
 			s.highestPrice = data.Price // Reset peak
@@ -419,4 +433,25 @@ func (s *SMACrossover) calculateRSI(period int) float64 {
 
 	rs := totalGain / totalLoss
 	return 100.0 - (100.0 / (1.0 + rs))
+}
+func (s *SMACrossover) calculateBollingerBands(period int, stdDev float64) (mid, upper, lower float64) {
+	if len(s.prices) < period {
+		return 0, 0, 0
+	}
+	subset := s.prices[len(s.prices)-period:]
+	sum := 0.0
+	for _, p := range subset {
+		sum += p
+	}
+	mid = sum / float64(period)
+
+	variance := 0.0
+	for _, p := range subset {
+		variance += math.Pow(p-mid, 2)
+	}
+	sd := math.Sqrt(variance / float64(period))
+
+	upper = mid + (stdDev * sd)
+	lower = mid - (stdDev * sd)
+	return mid, upper, lower
 }

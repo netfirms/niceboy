@@ -159,7 +159,8 @@ func (b *BitkubExchange) SubscribePrice(ctx context.Context, symbol string, ch c
 					var raw struct {
 						Stream string `json:"stream"`
 						Data   struct {
-							Last float64 `json:"last"`
+							Last       float64 `json:"last"`
+							BaseVolume float64 `json:"base_volume"`
 						} `json:"data"`
 					}
 					if err := json.Unmarshal(message, &raw); err == nil && raw.Data.Last > 0 {
@@ -167,6 +168,7 @@ func (b *BitkubExchange) SubscribePrice(ctx context.Context, symbol string, ch c
 						case ch <- MarketData{
 							Symbol: symbol,
 							Price:  raw.Data.Last,
+							Volume: raw.Data.BaseVolume,
 							Time:   time.Now().UnixNano() / 1e6,
 						}:
 						case <-ctx.Done():

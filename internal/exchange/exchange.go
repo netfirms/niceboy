@@ -8,6 +8,7 @@ import (
 type MarketData struct {
 	Symbol string
 	Price  float64
+	Volume float64
 	Time   int64 // Unix timestamp in milliseconds
 }
 
