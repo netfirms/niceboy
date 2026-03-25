@@ -7,8 +7,12 @@ import (
 
 func TestSMACrossover_OnMarketData(t *testing.T) {
 	strat, _ := New("sma_crossover", map[string]interface{}{
-		"short_period": 5,
-		"long_period":  10,
+		"short_period":           5,
+		"long_period":            10,
+		"confirm_ticks":          1,
+		"min_gap_pct":            0,
+		"analysis_interval_ms": 0,
+		"max_dev_pct":          0,
 	})
 
 	tests := []struct {
@@ -49,9 +53,12 @@ func TestSMACrossover_OnMarketData(t *testing.T) {
 
 func TestSMACrossover_StopLoss(t *testing.T) {
 	strat, _ := New("sma_crossover", map[string]interface{}{
-		"short_period":  2,
-		"long_period":   4,
-		"stop_loss_pct": 5.0,
+		"short_period":           2,
+		"long_period":            4,
+		"stop_loss_pct":          5.0,
+		"confirm_ticks":          1,
+		"analysis_interval_ms": 0,
+		"max_dev_pct":          0,
 	})
 
 	// Fill data to trigger BUY
@@ -77,9 +84,12 @@ func TestSMACrossover_StopLoss(t *testing.T) {
 
 func TestSMACrossover_TakeProfit(t *testing.T) {
 	strat, _ := New("sma_crossover", map[string]interface{}{
-		"short_period":    2,
-		"long_period":     4,
-		"take_profit_pct": 10.0,
+		"short_period":           2,
+		"long_period":            4,
+		"take_profit_pct":        10.0,
+		"confirm_ticks":          1,
+		"analysis_interval_ms": 0,
+		"max_dev_pct":          0,
 	})
 
 	// Fill data
@@ -133,9 +143,12 @@ func TestStrategy_Registry(t *testing.T) {
 
 func TestSMACrossover_TrailingStop(t *testing.T) {
 	strat, _ := New("sma_crossover", map[string]interface{}{
-		"short_period":      2,
-		"long_period":       4,
-		"trailing_stop_pct": 2.0,
+		"short_period":           2,
+		"long_period":            4,
+		"trailing_stop_pct":      2.0,
+		"confirm_ticks":          1,
+		"analysis_interval_ms": 0,
+		"max_dev_pct":          0,
 	})
 
 	// 1. Fill data and trigger BUY at 100
@@ -169,9 +182,12 @@ func TestSMACrossover_TrailingStop(t *testing.T) {
 
 func TestSMACrossover_TrendFilter(t *testing.T) {
 	strat, _ := New("sma_crossover", map[string]interface{}{
-		"short_period": 2,
-		"long_period":  4,
-		"trend_period": 10,
+		"short_period":           2,
+		"long_period":            4,
+		"trend_period":           10,
+		"confirm_ticks":          1,
+		"analysis_interval_ms": 0,
+		"max_dev_pct":          0,
 	})
 
 	// 1. Create a "Bearish" Trend (Price < EMA)

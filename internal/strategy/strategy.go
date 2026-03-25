@@ -36,6 +36,11 @@ type Signal struct {
 type Strategy interface {
 	GetName() string
 	OnMarketData(data exchange.MarketData) Signal
+	OnKline(kline exchange.Kline) Signal
 	GetState() map[string]interface{}
 	LoadState(state map[string]interface{})
+
+	// Engine Metadata
+	GetInterval() string     // e.g. "15m", "1h", "4h"
+	GetHistoryLimit() int    // Number of historical klines needed to prime
 }

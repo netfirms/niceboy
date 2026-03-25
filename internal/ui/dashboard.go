@@ -35,35 +35,17 @@ const (
 )
 
 // Styles
+// Styles (Moved to theme.go)
 var (
-	headerStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("#00ffd5")).
-			Padding(1, 2)
-
-	boxStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("#333333")).
-			Padding(0, 1)
-
-	priceStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#ffcc00")).
-			Bold(true)
-
-	auditStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#888888")).
-			Italic(true)
-
-	buyStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("#00ff00"))
-
-	sellStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("#ff0000"))
-
-	waitStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#aaaaaa"))
+	headerStyle      = StyleHeader
+	boxStyle         = StyleBox
+	priceStyle       = StylePrice
+	auditStyle       = StyleMuted
+	buyStyle         = StyleBuy
+	sellStyle        = StyleSell
+	waitStyle        = StyleWait
+	activeTabStyle   = StyleTabActive
+	inactiveTabStyle = StyleTabInactive
 )
 
 type Model struct {
@@ -405,51 +387,41 @@ func (m Model) View() string {
 	title := headerStyle.Render(titleText)
 
 	// 2. Tabs
-	activeTabStyle := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("#00ffd5")).Padding(0, 2).Bold(true).Foreground(lipgloss.Color("#ffffff"))
-	inactiveTabStyle := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("#555555")).Padding(0, 2).Foreground(lipgloss.Color("#888888"))
-
 	var tabCockpit, tabAccount, tabLogs, tabHist, tabStrat string
-	tabCockpit = inactiveTabStyle.Render("Cockpit")
-	tabAccount = inactiveTabStyle.Render("Account")
-	tabLogs = inactiveTabStyle.Render("Audit Logs")
-	tabHist = inactiveTabStyle.Render("History")
-	tabStrat = inactiveTabStyle.Render("Strategy")
-
 	switch m.ActiveTab {
 	case TabCockpit:
-		tabCockpit = activeTabStyle.Render("Cockpit")
+		tabCockpit = StyleTabActive.Render("1:COCKPIT")
 	case TabAccount:
-		tabAccount = activeTabStyle.Render("Account")
+		tabAccount = StyleTabActive.Render("2:ACCOUNT")
 	case TabLogs:
-		tabLogs = activeTabStyle.Render("Audit Logs")
+		tabLogs = StyleTabActive.Render("3:AUDIT LOGS")
 	case TabHistory:
-		tabHist = activeTabStyle.Render("History")
+		tabHist = StyleTabActive.Render("4:HISTORY")
 	case TabStrategy:
-		tabStrat = activeTabStyle.Render("Strategy")
+		tabStrat = StyleTabActive.Render("5:STRATEGY")
 	}
+	
+	// Add inactive styles for the others
+	if m.ActiveTab != TabCockpit { tabCockpit = StyleTabInactive.Render("1:COCKPIT") }
+	if m.ActiveTab != TabAccount { tabAccount = StyleTabInactive.Render("2:ACCOUNT") }
+	if m.ActiveTab != TabLogs { tabLogs = StyleTabInactive.Render("3:AUDIT LOGS") }
+	if m.ActiveTab != TabHistory { tabHist = StyleTabInactive.Render("4:HISTORY") }
+	if m.ActiveTab != TabStrategy { tabStrat = StyleTabInactive.Render("5:STRATEGY") }
 	tabsRow := lipgloss.JoinHorizontal(lipgloss.Top, tabCockpit, tabAccount, tabLogs, tabHist, tabStrat)
 
 	headerSection := lipgloss.JoinVertical(lipgloss.Center, title, tabsRow)
 
-	vStr := m.AppVersion
-	if vStr == "dev" {
-		vStr = fmt.Sprintf("dev-%s", m.AppCommit[:min(7, len(m.AppCommit))])
-	}
-	versionStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#555555"))
-	footerRow := lipgloss.JoinHorizontal(lipgloss.Center,
-		lipgloss.PlaceHorizontal(m.Width-15, lipgloss.Center, auditStyle.Render(" [tab:switch view] [e:export] [x:clear] [q:quit] ")),
-		versionStyle.Render(vStr),
-	)
-
+	footer := m.renderFooter()
+	
 	if m.ActiveTab == TabLogs || m.ActiveTab == TabHistory || m.ActiveTab == TabStrategy {
 		return fmt.Sprintf("%s\n\n%s\n%s",
 			lipgloss.PlaceHorizontal(m.Width, lipgloss.Center, headerSection),
 			m.Viewport.View(),
-			lipgloss.PlaceHorizontal(m.Width, lipgloss.Center, footerRow))
+			lipgloss.PlaceHorizontal(m.Width, lipgloss.Center, footer))
 	}
 
 	if m.ActiveTab == TabCockpit {
-		return m.renderCockpit(headerSection)
+		return m.renderCockpit(headerSection, footer)
 	}
 
 	// --- Dashboard View Building (Renamed to Account) ---
@@ -553,28 +525,41 @@ func (m Model) View() string {
 
 	dashboardMatrix := lipgloss.JoinVertical(lipgloss.Center, topWidgets, midWidgets)
 
-	statusLine := auditStyle.Render(" [tab:switch view] [e:export] [x:clear] [q:quit] ")
-	if m.StatusMsg != "" {
-		statusLine = lipgloss.NewStyle().Foreground(lipgloss.Color("#00ffd5")).Bold(true).Render(" " + m.StatusMsg + " ")
-	}
-
-	vStr = m.AppVersion
-	if vStr == "dev" {
-		vStr = fmt.Sprintf("dev-%s", m.AppCommit[:min(7, len(m.AppCommit))])
-	}
-	versionStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#555555"))
-	footerRow = lipgloss.JoinHorizontal(lipgloss.Center,
-		lipgloss.PlaceHorizontal(m.Width-15, lipgloss.Center, statusLine),
-		versionStyle.Render(vStr),
-	)
-
 	return fmt.Sprintf("%s\n\n%s\n\n%s",
 		lipgloss.PlaceHorizontal(m.Width, lipgloss.Center, headerSection),
 		lipgloss.PlaceHorizontal(m.Width, lipgloss.Center, dashboardMatrix),
-		lipgloss.PlaceHorizontal(m.Width, lipgloss.Center, footerRow))
+		lipgloss.PlaceHorizontal(m.Width, lipgloss.Center, footer))
 }
 
-func (m Model) renderCockpit(headerSection string) string {
+func (m Model) renderFooter() string {
+	var keys []string
+	keys = append(keys, "[tab/arrow: switch]")
+	
+	switch m.ActiveTab {
+	case TabCockpit:
+		keys = append(keys, "[b: buy]", "[s: sell]", "[k: kill]")
+	case TabLogs, TabHistory:
+		keys = append(keys, "[e: export]", "[x: clear]")
+	}
+	keys = append(keys, "[q: quit]")
+
+	hotkeys := strings.Join(keys, "  ")
+	if m.StatusMsg != "" {
+		hotkeys = lipgloss.NewStyle().Foreground(lipgloss.Color(ColorPrimary)).Bold(true).Render(" " + m.StatusMsg + " ")
+	}
+
+	vStr := m.AppVersion
+	if vStr == "dev" {
+		vStr = fmt.Sprintf("dev-%s", m.AppCommit[:min(7, len(m.AppCommit))])
+	}
+
+	return lipgloss.JoinHorizontal(lipgloss.Center,
+		lipgloss.PlaceHorizontal(m.Width-20, lipgloss.Center, StyleWait.Render(hotkeys)),
+		lipgloss.NewStyle().Foreground(lipgloss.Color(ColorDim)).Render(vStr),
+	)
+}
+
+func (m Model) renderCockpit(headerSection string, footer string) string {
 	// 1. Position Tracker
 	pnl := 0.0
 	pnlPct := 0.0
@@ -697,25 +682,10 @@ func (m Model) renderCockpit(headerSection string) string {
 
 	cockpitMatrix := lipgloss.JoinVertical(lipgloss.Center, topRow, midRow, bottomRow)
 
-	statusLine := auditStyle.Render(" [tab:switch view] [b:buy] [s:sell] [k:kill] [e:export] [q:quit] ")
-	if m.StatusMsg != "" {
-		statusLine = lipgloss.NewStyle().Foreground(lipgloss.Color("#00ffd5")).Bold(true).Render(" " + m.StatusMsg + " ")
-	}
-
-	vStr := m.AppVersion
-	if vStr == "dev" {
-		vStr = fmt.Sprintf("dev-%s", m.AppCommit[:min(7, len(m.AppCommit))])
-	}
-	versionStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#555555"))
-	footerRow := lipgloss.JoinHorizontal(lipgloss.Center,
-		lipgloss.PlaceHorizontal(m.Width-15, lipgloss.Center, statusLine),
-		versionStyle.Render(vStr),
-	)
-
 	return fmt.Sprintf("%s\n\n%s\n\n%s",
 		lipgloss.PlaceHorizontal(m.Width, lipgloss.Center, headerSection),
 		lipgloss.PlaceHorizontal(m.Width, lipgloss.Center, cockpitMatrix),
-		lipgloss.PlaceHorizontal(m.Width, lipgloss.Center, footerRow))
+		lipgloss.PlaceHorizontal(m.Width, lipgloss.Center, footer))
 }
 
 func (m Model) renderOrderBook() string {
@@ -818,115 +788,77 @@ func (m *Model) updateViewportContent() {
 }
 
 func (m Model) renderChart() string {
-	// Dynamically calculate width based on terminal size, with bounds
 	width := m.Width - 80
-	if width < 50 {
-		width = 50
-	}
-	if width > 120 {
-		width = 120
-	} // Cap visual width to prevent extreme stretching
-
+	if width < 50 { width = 50 }
+	if width > 120 { width = 120 }
 	height := 8
 	if len(m.PriceHistory) < 2 {
 		return boxStyle.Width(width + 2).Height(height).Render("Waiting for data...")
 	}
 
-	// 1. Find Min/Max
 	minP := m.PriceHistory[0]
 	maxP := m.PriceHistory[0]
 	for _, p := range m.PriceHistory {
-		if p < minP {
-			minP = p
-		}
-		if p > maxP {
-			maxP = p
-		}
+		if p < minP { minP = p }
+		if p > maxP { maxP = p }
 	}
-	if maxP == minP {
-		maxP += 0.01
-		minP -= 0.01
+	if maxP == minP { maxP += 0.01; minP -= 0.01 }
+
+	// Braille canvas: width chars, height chars
+	// Internal resolution: width * 2, height * 4
+	canvasWidth := width * 2
+	canvasHeight := height * 4
+	canvas := make([][]bool, canvasHeight)
+	for i := range canvas {
+		canvas[i] = make([]bool, canvasWidth)
 	}
 
-	// 2. Create Grid (empty)
-	grid := make([][]string, height)
-	for i := range grid {
-		grid[i] = make([]string, width)
-		for j := range grid[i] {
-			grid[i][j] = " "
-		}
-	}
-
-	// 3. Plot Points (with downsampling)
+	// Plot points
 	historyLen := len(m.PriceHistory)
-	stride := 1
-	if historyLen > width {
-		stride = historyLen / width
-	}
-
-	for i := 0; i < width; i++ {
-		// Calculate index in history for this column
-		histIdx := i * stride
-		if stride > 1 {
-			// When downsampling, we take the last point in the bucket to represent the "current" state
-			histIdx = (i+1)*stride - 1
-		}
-
-		if histIdx >= historyLen {
-			if i == 0 {
-				continue
-			}
-			break
-		}
-
+	stride := float64(historyLen) / float64(canvasWidth)
+	for x := 0; x < canvasWidth; x++ {
+		histIdx := int(float64(x) * stride)
+		if histIdx >= historyLen { histIdx = historyLen - 1 }
 		p := m.PriceHistory[histIdx]
-		// Normalize P to [0, height-1]
-		row := int(((p - minP) / (maxP - minP)) * float64(height-1))
-		rowIdx := (height - 1) - row
-
-		char := "·"
-		if i > 0 {
-			prevIdx := (i - 1) * stride
-			if stride > 1 {
-				prevIdx = i*stride - 1
-			}
-			prevP := m.PriceHistory[prevIdx]
-			if p > prevP {
-				char = "◜"
-			}
-			if p < prevP {
-				char = "◟"
-			}
-		}
-
-		// If ANY marker exists in this bucket (stride range), show it
-		bucketStart := i * stride
-		bucketEnd := (i + 1) * stride
-		for j := bucketStart; j < bucketEnd && j < historyLen; j++ {
-			if mark, ok := m.TradeMarkers[j]; ok {
-				if mark == "B" {
-					char = lipgloss.NewStyle().Foreground(lipgloss.Color("#00ff00")).Bold(true).Render("B")
-				} else {
-					char = lipgloss.NewStyle().Foreground(lipgloss.Color("#ff0000")).Bold(true).Render("S")
-				}
-				break // Found a marker in this bucket, stop looking
-			}
-		}
-
-		if rowIdx >= 0 && rowIdx < height {
-			grid[rowIdx][i] = char
+		
+		y := int(((p - minP) / (maxP - minP)) * float64(canvasHeight-1))
+		yIdx := (canvasHeight - 1) - y
+		if yIdx >= 0 && yIdx < canvasHeight {
+			canvas[yIdx][x] = true
 		}
 	}
 
-	// 4. Build output string
+	// Render Braille
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("PRICE CHART (Last %d ticks)  Max: %.2f  Min: %.2f\n", historyLen, maxP, minP))
-	for r := 0; r < height; r++ {
-		for c := 0; c < width; c++ {
-			b.WriteString(grid[r][c])
+	b.WriteString(fmt.Sprintf("PRICE CHART (High-Res Braille)  Max: %.2f  Min: %.2f\n", maxP, minP))
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			// Each 2x4 block
+			var braille byte = 0
+			// Braille dot mapping:
+			// 1 4
+			// 2 5
+			// 3 6
+			// 7 8
+			if canvas[y*4+0][x*2+0] { braille |= 1 << 0 }
+			if canvas[y*4+1][x*2+0] { braille |= 1 << 1 }
+			if canvas[y*4+2][x*2+0] { braille |= 1 << 2 }
+			if canvas[y*4+0][x*2+1] { braille |= 1 << 3 }
+			if canvas[y*4+1][x*2+1] { braille |= 1 << 4 }
+			if canvas[y*4+2][x*2+1] { braille |= 1 << 5 }
+			if canvas[y*4+3][x*2+0] { braille |= 1 << 6 }
+			if canvas[y*4+3][x*2+1] { braille |= 1 << 7 }
+
+			if braille == 0 {
+				b.WriteString(" ")
+			} else {
+				// Base dot is 0x2800
+				b.WriteRune(rune(0x2800 + int(braille)))
+			}
 		}
 		b.WriteString("\n")
 	}
 
+	// Note: Markers are skipped in Braille version for cleanlines or could be added overlay
 	return boxStyle.Width(width + 4).Height(height + 2).Render(b.String())
 }

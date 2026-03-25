@@ -23,6 +23,7 @@ type Config struct {
 	DatabasePath       string                    `yaml:"database_path"`
 	OrderQuantity      float64                   `yaml:"order_quantity"`
 	SlippagePct        float64                   `yaml:"slippage_pct"`
+	KlineInterval      string                    `yaml:"kline_interval"`
 	StrategyParameters map[string]interface{}    `yaml:"strategy_parameters"`
 	Exchanges          map[string]ExchangeConfig `yaml:"exchanges"`
 }

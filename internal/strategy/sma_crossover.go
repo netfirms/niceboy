@@ -4,56 +4,66 @@ import (
 	"fmt"
 	"math"
 	"niceboy/internal/exchange"
+	"time"
 )
 
 func init() {
 	Register("sma_crossover", func(params map[string]interface{}) (Strategy, error) {
 		shortP := 5
 		longP := 10
-		sl := 0.0 // Default no stop loss
-		tp := 0.0 // Default no take profit
+		sl, tp, ts := 0.0, 0.0, 0.0
+		trendP := 0
+		minGap := 0.1
+		confirmT := 3
+		rsiP := 14
+		rsiT := 65.0
+		maxDev := 1.0
+		bbP := 20
+		bbSD := 2.0
+		aInterval := 2000
 
-		if val, err := getIntParam(params, "short_period"); err == nil {
-			shortP = val
-		}
-		if val, err := getIntParam(params, "long_period"); err == nil {
-			longP = val
-		}
-		if val, err := getFloatParam(params, "stop_loss_pct"); err == nil {
-			sl = val
-		}
-		if val, err := getFloatParam(params, "take_profit_pct"); err == nil {
-			tp = val
-		}
-
-		ts := 0.0
-		if val, err := getFloatParam(params, "trailing_stop_pct"); err == nil {
-			ts = val
-		}
-
-		trendP := 0 // 0 means disabled
-		if val, err := getIntParam(params, "trend_period"); err == nil {
-			trendP = val
-		}
+		if val, err := getIntParam(params, "short_period"); err == nil { shortP = val }
+		if val, err := getIntParam(params, "long_period"); err == nil { longP = val }
+		if val, err := getFloatParam(params, "stop_loss_pct"); err == nil { sl = val }
+		if val, err := getFloatParam(params, "take_profit_pct"); err == nil { tp = val }
+		if val, err := getFloatParam(params, "trailing_stop_pct"); err == nil { ts = val }
+		if val, err := getIntParam(params, "trend_period"); err == nil { trendP = val }
+		if val, err := getFloatParam(params, "min_gap_pct"); err == nil { minGap = val }
+		if val, err := getIntParam(params, "confirm_ticks"); err == nil { confirmT = val }
+		if val, err := getIntParam(params, "rsi_period"); err == nil { rsiP = val }
+		if val, err := getFloatParam(params, "rsi_buy_threshold"); err == nil { rsiT = val } // Corrected key to match usage
+		if val, err := getFloatParam(params, "max_dev_pct"); err == nil { maxDev = val }
+		if val, err := getIntParam(params, "bb_period"); err == nil { bbP = val }
+		if val, err := getFloatParam(params, "bb_std_dev"); err == nil { bbSD = val }
+		if val, err := getIntParam(params, "analysis_interval_ms"); err == nil { aInterval = val }
 
 		if shortP >= longP {
 			return nil, fmt.Errorf("short_period must be less than long_period")
 		}
 
 		maxBuffer := longP
-		if trendP > maxBuffer {
-			maxBuffer = trendP
-		}
+		if trendP > maxBuffer { maxBuffer = trendP }
+		if rsiP > maxBuffer { maxBuffer = rsiP }
+		if bbP > maxBuffer { maxBuffer = bbP }
 
 		return &SMACrossover{
-			shortPeriod:     shortP,
-			longPeriod:      longP,
-			stopLossPct:     sl,
-			takeProfitPct:   tp,
-			trailingStopPct: ts,
-			trendPeriod:     trendP,
-			prices:          []float64{},
-			maxBuffer:       maxBuffer,
+			shortPeriod:        shortP,
+			longPeriod:         longP,
+			stopLossPct:        sl,
+			takeProfitPct:      tp,
+			trailingStopPct:    ts,
+			trendPeriod:        trendP,
+			minGapPct:          minGap,
+			confirmTicks:       confirmT,
+			rsiPeriod:          rsiP,
+			rsiThreshold:       rsiT,
+			maxDevPct:          maxDev,
+			bbPeriod:           bbP,
+			bbStdDev:           bbSD,
+			analysisIntervalMs: aInterval,
+			prices:             []float64{},
+			maxBuffer:          maxBuffer,
+			lastSignal:         Wait,
 		}, nil
 	})
 }
@@ -115,40 +125,21 @@ type SMACrossover struct {
 	// Bollinger Bands
 	bbPeriod int
 	bbStdDev float64
+
+	// Throttling
+	analysisIntervalMs int
+	lastAnalysisTime   int64
 }
 
 func (s *SMACrossover) GetName() string {
 	return "sma_crossover"
 }
 
+func (s *SMACrossover) OnKline(kline exchange.Kline) Signal {
+	return Signal{Type: Wait}
+}
+
 func (s *SMACrossover) OnMarketData(data exchange.MarketData) Signal {
-	s.prices = append(s.prices, data.Price)
-	if len(s.prices) > s.maxBuffer {
-		s.prices = s.prices[1:]
-	}
-
-	// Wait for enough data for the LONGEST period (usually trend_period)
-	required := s.longPeriod
-	if s.trendPeriod > required {
-		required = s.trendPeriod
-	}
-
-	if len(s.prices) < required {
-		return Signal{
-			Type:   Wait,
-			Symbol: data.Symbol,
-			Reason: fmt.Sprintf("Collecting data (%d/%d)...", len(s.prices), required),
-		}
-	}
-
-	shortSMA := s.calculateSMA(s.shortPeriod)
-	longSMA := s.calculateSMA(s.longPeriod)
-
-	var trendEMA float64
-	if s.trendPeriod > 0 {
-		trendEMA = s.calculateEMA(s.trendPeriod)
-	}
-
 	// Prepare base signal with cockpit metadata
 	sig := Signal{
 		Symbol:       data.Symbol,
@@ -159,6 +150,7 @@ func (s *SMACrossover) OnMarketData(data exchange.MarketData) Signal {
 		TrailingStop: 0,
 	}
 
+	// 1. REAL-TIME SAFETY CHECK (Always run on every tick)
 	if s.inPosition {
 		if s.stopLossPct > 0 {
 			sig.StopLoss = s.entryPrice * (1.0 - s.stopLossPct/100.0)
@@ -168,6 +160,11 @@ func (s *SMACrossover) OnMarketData(data exchange.MarketData) Signal {
 		}
 		if s.trailingStopPct > 0 {
 			sig.TrailingStop = s.highestPrice * (1.0 - s.trailingStopPct/100.0)
+		}
+
+		// Update highest price for trailing stop
+		if data.Price > s.highestPrice {
+			s.highestPrice = data.Price
 		}
 	}
 
@@ -235,8 +232,51 @@ func (s *SMACrossover) OnMarketData(data exchange.MarketData) Signal {
 		}
 	}
 
-	// 2. Indicators for confirmation
-	rsi := s.calculateRSI(s.rsiPeriod)
+	// 2. TIME-BASED THROTTLING (Fix "Fast Buy" on Binance)
+	now := data.Time
+	if now == 0 {
+		now = time.Now().UnixMilli()
+	}
+
+	// Only update price history and recalibrate indicators every analysisIntervalMs
+	// EXCEPT if we are still collecting the initial buffer (we want to fill it fast)
+	if len(s.prices) >= s.longPeriod && now-s.lastAnalysisTime < int64(s.analysisIntervalMs) {
+		sig.Type = Wait
+		return sig
+	}
+
+	// 3. INDICATOR UPDATE
+	s.lastAnalysisTime = now
+	s.prices = append(s.prices, data.Price)
+	if len(s.prices) > s.maxBuffer {
+		s.prices = s.prices[1:]
+	}
+
+	// Wait for enough data
+	required := s.longPeriod
+	if s.trendPeriod > required {
+		required = s.trendPeriod
+	}
+
+	if len(s.prices) < required {
+		sig.Type = Wait
+		sig.Reason = fmt.Sprintf("Collecting data (%d/%d)...", len(s.prices), required)
+		return sig
+	}
+
+	// 4. TREND ANALYSIS
+	shortSMA := s.calculateSMA(s.shortPeriod)
+	longSMA := s.calculateSMA(s.longPeriod)
+	var trendEMA float64
+	if s.trendPeriod > 0 {
+		trendEMA = s.calculateEMA(s.trendPeriod)
+	}
+
+	rsi := 0.0
+	if s.rsiPeriod > 0 {
+		rsi = s.calculateRSI(s.rsiPeriod)
+	}
+
 	devPct := 0.0
 	if longSMA > 0 {
 		devPct = ((data.Price - longSMA) / longSMA) * 100.0
@@ -384,6 +424,14 @@ func (s *SMACrossover) LoadState(state map[string]interface{}) {
 	} else if val, ok := state["last_signal"].(int); ok {
 		s.lastSignal = SignalType(val)
 	}
+}
+
+func (s *SMACrossover) GetHistoryLimit() int {
+	return s.maxBuffer + 10
+}
+
+func (s *SMACrossover) GetInterval() string {
+	return ""
 }
 
 func (s *SMACrossover) calculateSMA(period int) float64 {

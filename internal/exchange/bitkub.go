@@ -183,6 +183,14 @@ func (b *BitkubExchange) SubscribePrice(ctx context.Context, symbol string, ch c
 	return nil
 }
 
+func (b *BitkubExchange) SubscribeKlines(ctx context.Context, symbol string, interval string, ch chan<- Kline) error {
+	return fmt.Errorf("SubscribeKlines not implemented for Bitkub")
+}
+
+func (b *BitkubExchange) GetKlines(ctx context.Context, symbol string, interval string, limit int) ([]Kline, error) {
+	return nil, fmt.Errorf("GetKlines not implemented for Bitkub")
+}
+
 func (b *BitkubExchange) ExecuteOrder(ctx context.Context, symbol string, side OrderSide, orderType OrderType, quantity float64, price float64) error {
 	if quantity <= 0 {
 		return fmt.Errorf("invalid quantity: %f", quantity)

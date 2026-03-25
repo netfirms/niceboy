@@ -14,6 +14,7 @@ import (
 	"niceboy/internal/exchange"
 	"niceboy/internal/strategy"
 	"niceboy/internal/ui"
+	"niceboy/internal/execution"
 	"strconv"
 
 	"github.com/charmbracelet/bubbletea"
@@ -33,6 +34,8 @@ var (
 func main() {
 	configPath := flag.String("config", "config.yaml", "Path to configuration file")
 	showVersion := flag.Bool("version", false, "Show version information")
+	backtest := flag.Bool("backtest", false, "Run historical backtest")
+	limit := flag.Int("limit", 500, "Number of candles to backtest")
 	flag.Parse()
 
 	if *showVersion {
@@ -125,11 +128,31 @@ func main() {
 			log.Fatal().Err(err).Msg("Failed to initialize strategy")
 		}
 
-		if stateJSON, err := dbStore.GetState("strategy_state"); err == nil && stateJSON != "" {
-			var state map[string]interface{}
-			if err := json.Unmarshal([]byte(stateJSON), &state); err == nil {
-				strat.LoadState(state)
+			if stateJSON, err := dbStore.GetState("strategy_state"); err == nil && stateJSON != "" {
+				var state map[string]interface{}
+				if err := json.Unmarshal([]byte(stateJSON), &state); err == nil {
+					strat.LoadState(state)
+				}
 			}
+
+		if *backtest {
+			log.Info().Str("strategy", strategyName).Str("symbol", symbol).Int("limit", *limit).Msg("🚀 Starting historical backtest...")
+			res, err := execution.RunBacktest(context.Background(), exch, strat, symbol, cfg.KlineInterval, *limit)
+			if err != nil {
+				log.Fatal().Err(err).Msg("Backtest failed")
+			}
+
+			fmt.Println("\n==================================================")
+			fmt.Printf(" BACKTEST RESULTS: %s (%s)\n", strategyName, symbol)
+			fmt.Println("==================================================")
+			fmt.Printf(" Period:       %s to %s (%v)\n", res.Trades[0].EntryTime.Format("2006-01-02"), res.Trades[len(res.Trades)-1].ExitTime.Format("2006-01-02"), res.Duration.Round(time.Hour))
+			fmt.Printf(" Total Return: %+.2f USDT (%+.2f%%)\n", res.TotalReturn, res.TotalReturnPct)
+			fmt.Printf(" Win Rate:     %.1f%% (%d/%d)\n", res.WinRate, res.WinningTrades, res.TotalTrades)
+			fmt.Printf(" Max Drawdown: %.2f%%\n", res.MaxDrawdown)
+			fmt.Println("--------------------------------------------------")
+			fmt.Printf(" Finished at:  %s\n", time.Now().Format(time.RFC822))
+			fmt.Println("==================================================")
+			return
 		}
 
 		engineCh := make(chan interface{}, 20)
@@ -150,17 +173,89 @@ func main() {
 			}()
 
 			marketDataCh := make(chan exchange.MarketData, 100)
+			klineCh := make(chan exchange.Kline, 100)
+
 			err := exch.SubscribePrice(cmdCtx, symbol, marketDataCh)
 			if err != nil {
 				log.Fatal().Err(err).Msg("Failed to subscribe to market data")
 			}
-			p.Send(ui.AuditMsg("STREAM: Connected to market data"))
+
+			// Also subscribe to klines if interval is specified
+			klineInterval := strat.GetInterval()
+			if klineInterval == "" {
+				klineInterval = cfg.KlineInterval
+			}
+			if klineInterval == "" {
+				klineInterval = "15m" // Ultimate default
+			}
+			
+			// BOOTSTRAP: Load historical klines to avoid "waiting for data"
+			historyLimit := strat.GetHistoryLimit()
+			if historyLimit <= 0 { historyLimit = 100 }
+
+			p.Send(ui.AuditMsg(fmt.Sprintf("BOOTSTRAP: Loading %d historical %s klines for %s...", historyLimit, klineInterval, strat.GetName())))
+			history, err := exch.GetKlines(cmdCtx, symbol, klineInterval, historyLimit)
+			if err == nil {
+				for _, k := range history {
+					strat.OnKline(k)
+				}
+				p.Send(ui.AuditMsg(fmt.Sprintf("BOOTSTRAP: Success! Loaded %d historical candles.", len(history))))
+			} else {
+				p.Send(ui.AuditMsg(fmt.Sprintf("BOOTSTRAP: Warning: Could not load history: %v", err)))
+			}
+
+			if err := exch.SubscribeKlines(cmdCtx, symbol, klineInterval, klineCh); err != nil {
+				log.Warn().Err(err).Str("interval", klineInterval).Msg("Failed to subscribe to klines (assuming ticker-only exchange)")
+			}
+			p.Send(ui.AuditMsg(fmt.Sprintf("STREAM: Connected to market data (Ticks + %s Klines)", klineInterval)))
 
 			var lastBalances map[string]float64
 			halted := false
 			if val, err := dbStore.GetState("bot_halted"); err == nil && val == "true" {
 				halted = true
 				p.Send(ui.AuditMsg("[SYSTEM] Bot is HALTED. Type 'k' to clear logic (exit/restart)."))
+			}
+
+			handleSignal := func(sig strategy.Signal) {
+				if sig.Type == strategy.Wait {
+					return
+				}
+				p.Send(ui.SignalMsg(sig))
+
+				if sig.Type == strategy.Buy || sig.Type == strategy.Sell {
+					// Check balance before executing
+					canTrade := true
+					if sig.Type == strategy.Buy {
+						quote := lastBalances["USDT"] // Simplified
+						if quote < sig.Price*cfg.OrderQuantity {
+							p.Send(ui.AuditMsg(fmt.Sprintf("SKIP: Insufficient USDT (%.2f < %.2f)", quote, sig.Price*cfg.OrderQuantity)))
+							canTrade = false
+						}
+					} else {
+						base := lastBalances["BTC"] // Simplified
+						if base < cfg.OrderQuantity {
+							p.Send(ui.AuditMsg(fmt.Sprintf("SKIP: Insufficient BTC (%.4f < %.4f)", base, cfg.OrderQuantity)))
+							canTrade = false
+						}
+					}
+
+					if canTrade {
+						executedSignal := strategy.Signal{
+							Type:       sig.Type,
+							Symbol:     symbol,
+							Price:      sig.Price,
+							Profit:     sig.Profit,
+							Reason:     sig.Reason,
+							StopLoss:   sig.StopLoss,
+							TakeProfit: sig.TakeProfit,
+						}
+						executeSignal(cmdCtx, executedSignal, lastBalances, exch, cfg, symbolInfo, dbStore, p, strat)
+						select {
+						case pollTriggerCh <- struct{}{}:
+						default:
+						}
+					}
+				}
 			}
 
 			for {
@@ -179,7 +274,10 @@ func main() {
 						if err := exch.ExecuteOrder(cmdCtx, symbol, msg.Side, exchange.Market, qty, price); err == nil {
 							p.Send(ui.AuditMsg(fmt.Sprintf("SUCCESS: Tactical %s @ %.2f", msg.Side, price)))
 							p.Send(ui.TradeExecutedMsg{})
-							select { case pollTriggerCh <- struct{}{}: default: }
+							select {
+							case pollTriggerCh <- struct{}{}:
+							default:
+							}
 						} else {
 							p.Send(ui.AuditMsg(fmt.Sprintf("FAIL: Tactical %s failed: %v", msg.Side, err)))
 						}
@@ -192,45 +290,13 @@ func main() {
 					if halted {
 						continue
 					}
-					sig := strat.OnMarketData(data)
-					if sig.Type != strategy.Wait {
-						p.Send(ui.SignalMsg(sig))
-						
-						if sig.Type == strategy.Buy || sig.Type == strategy.Sell {
-							// Check balance before executing
-							// ... (balance check logic)
-							canTrade := true
-							if sig.Type == strategy.Buy {
-								// Check quote asset
-								quote := lastBalances["USDT"] // Simplified
-								if quote < sig.Price * cfg.OrderQuantity {
-									p.Send(ui.AuditMsg(fmt.Sprintf("SKIP: Insufficient USDT (%.2f < %.2f)", quote, sig.Price*cfg.OrderQuantity)))
-									canTrade = false
-								}
-							} else {
-								// Check base asset
-								base := lastBalances["BTC"] // Simplified
-								if base < cfg.OrderQuantity {
-									p.Send(ui.AuditMsg(fmt.Sprintf("SKIP: Insufficient BTC (%.4f < %.4f)", base, cfg.OrderQuantity)))
-									canTrade = false
-								}
-							}
-
-							if canTrade {
-								executedSignal := strategy.Signal{
-									Type:       sig.Type,
-									Symbol:     symbol,
-									Price:      sig.Price,
-									Profit:     sig.Profit,
-									Reason:     sig.Reason,
-									StopLoss:   sig.StopLoss,
-									TakeProfit: sig.TakeProfit,
-								}
-								executeSignal(cmdCtx, executedSignal, lastBalances, exch, cfg, symbolInfo, dbStore, p, strat)
-								select { case pollTriggerCh <- struct{}{}: default: }
-							}
-						}
+					p.Send(ui.PriceMsg(data))
+					handleSignal(strat.OnMarketData(data))
+				case kline := <-klineCh:
+					if halted {
+						continue
 					}
+					handleSignal(strat.OnKline(kline))
 				}
 			}
 		}(ctx)

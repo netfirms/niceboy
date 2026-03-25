@@ -96,6 +96,137 @@ func (b *BinanceExchange) SubscribePrice(ctx context.Context, symbol string, ch 
 	return nil
 }
 
+func (b *BinanceExchange) SubscribeKlines(ctx context.Context, symbol string, interval string, ch chan<- Kline) error {
+	wsHandler := func(event *binance.WsKlineEvent) {
+		open, _ := strconv.ParseFloat(event.Kline.Open, 64)
+		high, _ := strconv.ParseFloat(event.Kline.High, 64)
+		low, _ := strconv.ParseFloat(event.Kline.Low, 64)
+		close, _ := strconv.ParseFloat(event.Kline.Close, 64)
+		volume, _ := strconv.ParseFloat(event.Kline.Volume, 64)
+
+		select {
+		case <-ctx.Done():
+			return
+		case ch <- Kline{
+			Symbol:    symbol,
+			Interval:  interval,
+			Open:      open,
+			High:      high,
+			Low:       low,
+			Close:     close,
+			Volume:    volume,
+			StartTime: event.Kline.StartTime,
+			EndTime:   event.Kline.EndTime,
+			IsFinal:   event.Kline.IsFinal,
+		}:
+		}
+	}
+
+	go func() {
+		backoff := time.Second
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				errHandler := func(err error) {
+					// Connection lost
+				}
+
+				doneC, stopC, err := binance.WsKlineServe(symbol, interval, wsHandler, errHandler)
+				if err != nil {
+					time.Sleep(backoff)
+					if backoff < 30*time.Second {
+						backoff *= 2
+					}
+					continue
+				}
+
+				backoff = time.Second
+
+				select {
+				case <-ctx.Done():
+					stopC <- struct{}{}
+					<-doneC
+					return
+				case <-doneC:
+					time.Sleep(backoff)
+				}
+			}
+		}
+	}()
+
+	return nil
+}
+
+func (b *BinanceExchange) GetKlines(ctx context.Context, symbol string, interval string, limit int) ([]Kline, error) {
+	var allKlines []Kline
+	remaining := limit
+	endTime := int64(0)
+
+	for remaining > 0 {
+		fetchLimit := remaining
+		if fetchLimit > 1000 {
+			fetchLimit = 1000
+		}
+
+		service := b.client.NewKlinesService().Symbol(symbol).Interval(interval).Limit(fetchLimit)
+		if endTime > 0 {
+			service.EndTime(endTime)
+		}
+
+		resp, err := service.Do(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(resp) == 0 {
+			break
+		}
+
+		batch := make([]Kline, len(resp))
+		for i, k := range resp {
+			open, _ := strconv.ParseFloat(k.Open, 64)
+			high, _ := strconv.ParseFloat(k.High, 64)
+			low, _ := strconv.ParseFloat(k.Low, 64)
+			close, _ := strconv.ParseFloat(k.Close, 64)
+			volume, _ := strconv.ParseFloat(k.Volume, 64)
+
+			batch[i] = Kline{
+				Symbol:    symbol,
+				Interval:  interval,
+				Open:      open,
+				High:      high,
+				Low:       low,
+				Close:     close,
+				Volume:    volume,
+				StartTime: k.OpenTime,
+				EndTime:   k.CloseTime,
+				IsFinal:   true,
+			}
+		}
+
+		// When using EndTime, results are chronologically previous to that time.
+		// Newest kline in batch is batch[len(batch)-1]
+		// We need to prepend or append correctly to maintain chronological order.
+		// If we fetch newest first (decrementing EndTime), we prepend.
+		allKlines = append(batch, allKlines...)
+		
+		remaining -= len(batch)
+		if len(batch) > 0 {
+			endTime = resp[0].OpenTime - 1
+		} else {
+			break
+		}
+	}
+
+	if len(allKlines) > limit {
+		allKlines = allKlines[len(allKlines)-limit:]
+	}
+
+	return allKlines, nil
+}
+
 func (b *BinanceExchange) GetBalances(ctx context.Context) (map[string]float64, error) {
 	acc, err := b.client.NewGetAccountService().Do(ctx)
 	if err != nil {

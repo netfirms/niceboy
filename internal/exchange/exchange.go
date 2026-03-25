@@ -12,6 +12,20 @@ type MarketData struct {
 	Time   int64 // Unix timestamp in milliseconds
 }
 
+// Kline represents a candlestick
+type Kline struct {
+	Symbol    string
+	Interval  string
+	Open      float64
+	High      float64
+	Low       float64
+	Close     float64
+	Volume    float64
+	StartTime int64
+	EndTime   int64
+	IsFinal   bool
+}
+
 // DepthEntry represents a single price level in the order book
 type DepthEntry struct {
 	Price    float64
@@ -69,6 +83,10 @@ type Exchange interface {
 	GetPrice(ctx context.Context, symbol string) (float64, error)
 	// SubscribePrice opens a websocket for real-time price updates
 	SubscribePrice(ctx context.Context, symbol string, ch chan<- MarketData) error
+	// SubscribeKlines opens a websocket for real-time candlestick updates
+	SubscribeKlines(ctx context.Context, symbol string, interval string, ch chan<- Kline) error
+	// GetKlines retrieves historical candlesticks
+	GetKlines(ctx context.Context, symbol string, interval string, limit int) ([]Kline, error)
 	// ExecuteOrder places a trade on the exchange
 	ExecuteOrder(ctx context.Context, symbol string, side OrderSide, orderType OrderType, quantity float64, price float64) error
 	// GetBalances retrieves current asset quantities
